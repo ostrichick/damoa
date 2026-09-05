@@ -113,6 +113,154 @@ function SkeletonCard() {
   );
 }
 
+function JobCard({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k: string) => string }) {
+  return (
+    <div
+      key={job.job_id}
+      className="glass-card animate-fadeInUp"
+      style={{ padding: 24, border: "1px solid rgba(255, 255, 255, 0.08)" }}
+    >
+      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <ScoreRing score={job.match_score} />
+
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                  {job.company}
+                </span>
+                <span style={{
+                  fontSize: 10, padding: "1px 6px", borderRadius: 4,
+                  background: "rgba(255, 255, 255, 0.06)", color: "#a1a1aa",
+                  textTransform: "uppercase"
+                }}>
+                  {job.platform}
+                </span>
+              </div>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fafafa" }}>
+                {job.title}
+              </h3>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                📍 {translateTag(job.location || "Remote / Korea", language)} {job.posted_date ? `· ${translateTag(job.posted_date, language)}` : ""}
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {job.contract_type && (
+                <span className="badge-contract">{translateTag(job.contract_type, language)}</span>
+              )}
+              {job.salary_amount && (
+                <span className="badge-salary-type">💰 {translateTag(job.salary_amount, language)}</span>
+              )}
+              <a
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary"
+                style={{ padding: "8px 16px", fontSize: 12 }}
+              >
+                {t("results.apply")}
+              </a>
+            </div>
+          </div>
+
+          {/* Platform Trust & Payment info box */}
+          {job.trust_badge && (
+            <div style={{
+              marginTop: 12, padding: "8px 12px", borderRadius: 8,
+              background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.06)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              flexWrap: "wrap", gap: 10, fontSize: 12
+            }}>
+              <span style={{ fontWeight: 600, color: "#e4e4e7" }}>
+                {translateTag(job.trust_badge, language)}
+              </span>
+              {job.payment_methods && job.payment_methods.length > 0 && (
+                <span style={{ color: "#a1a1aa" }}>
+                  💳 {t("results.paymentMethods")}: {translateTags(job.payment_methods, language).join(", ")}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Matched skills */}
+          {job.matched_skills && job.matched_skills.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 14 }}>
+              {job.matched_skills.map((s, i) => (
+                <span key={i} className="skill-tag matched">✓ {s}</span>
+              ))}
+              {job.missing_skills?.slice(0, 3).map((s, i) => (
+                <span key={i} className="skill-tag missing">+ {s}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TableRow({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k: string) => string }) {
+  return (
+    <tr key={job.job_id}>
+      <td>
+        <span style={{
+          fontWeight: 800, fontSize: 14, color: "#ffffff",
+          padding: "3px 8px", borderRadius: 6,
+          background: "rgba(255, 255, 255, 0.08)"
+        }}>
+          {Math.round(job.match_score)}%
+        </span>
+      </td>
+      <td>
+        <div style={{ fontWeight: 600, color: "#fafafa" }}>{job.company}</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>{job.platform}</div>
+      </td>
+      <td>
+        <div style={{ fontWeight: 600, color: "#ffffff" }}>{job.title}</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {translateTag(job.location || "Remote / Korea", language)}</div>
+      </td>
+      <td>
+        <span className="badge-contract">
+          {translateTag(job.contract_type || (language === "en" ? "Full-time" : "정규직"), language)}
+        </span>
+      </td>
+      <td>
+        <span style={{ fontSize: 12, color: "#e4e4e7" }}>
+          {translateTag(job.salary_amount || (language === "en" ? "Negotiable" : "협의"), language)}
+        </span>
+      </td>
+      <td>
+        <div style={{ fontSize: 11, color: "#a1a1aa" }}>
+          {translateTag(job.trust_badge || (language === "en" ? "Verified" : "검증 완료"), language)}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+          {translateTags(job.payment_methods || [language === "en" ? "Direct Bank Transfer" : "통장 입금"], language).join(", ")}
+        </div>
+      </td>
+      <td>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, maxWidth: 220 }}>
+          {job.matched_skills?.slice(0, 3).map((s, i) => (
+            <span key={i} className="skill-tag matched" style={{ fontSize: 10, padding: "1px 5px" }}>{s}</span>
+          ))}
+        </div>
+      </td>
+      <td>
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary"
+          style={{ padding: "5px 12px", fontSize: 11, whiteSpace: "nowrap" }}
+        >
+          {t("results.apply")}
+        </a>
+      </td>
+    </tr>
+  );
+}
+
 function ResultsContent() {
   const { t, language } = useLanguage();
   const searchParams = useSearchParams();
@@ -195,6 +343,19 @@ function ResultsContent() {
       if (sortBy === "platform") return a.platform.localeCompare(b.platform);
       return 0;
     });
+
+  // Split into Top-Tier Matches and Extended/Broader Matches (겉절이)
+  const TOP_TIER_THRESHOLD = 65;
+  let primaryJobs = filteredJobs.filter((j) => j.match_score >= TOP_TIER_THRESHOLD);
+  let secondaryJobs = filteredJobs.filter((j) => j.match_score < TOP_TIER_THRESHOLD);
+
+  // Dynamic fallback: if all scores are below 65%, take the top cluster as primary
+  if (primaryJobs.length === 0 && filteredJobs.length > 0) {
+    const highestScore = Math.max(...filteredJobs.map((j) => j.match_score));
+    const dynamicThreshold = Math.max(30, highestScore - 10);
+    primaryJobs = filteredJobs.filter((j) => j.match_score >= dynamicThreshold);
+    secondaryJobs = filteredJobs.filter((j) => j.match_score < dynamicThreshold);
+  }
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -297,91 +458,60 @@ function ResultsContent() {
             ) : viewMode === "card" ? (
               /* CARD VIEW */
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {filteredJobs.map((job) => (
-                  <div
-                    key={job.job_id}
-                    className="glass-card animate-fadeInUp"
-                    style={{ padding: 24, border: "1px solid rgba(255, 255, 255, 0.08)" }}
-                  >
-                    <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
-                      <ScoreRing score={job.match_score} />
-
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                              <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
-                                {job.company}
-                              </span>
-                              <span style={{
-                                fontSize: 10, padding: "1px 6px", borderRadius: 4,
-                                background: "rgba(255, 255, 255, 0.06)", color: "#a1a1aa",
-                                textTransform: "uppercase"
-                              }}>
-                                {job.platform}
-                              </span>
-                            </div>
-                            <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fafafa" }}>
-                              {job.title}
-                            </h3>
-                            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                              📍 {translateTag(job.location || "Remote / Korea", language)} {job.posted_date ? `· ${translateTag(job.posted_date, language)}` : ""}
-                            </p>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                            {job.contract_type && (
-                              <span className="badge-contract">{translateTag(job.contract_type, language)}</span>
-                            )}
-                            {job.salary_amount && (
-                              <span className="badge-salary-type">💰 {translateTag(job.salary_amount, language)}</span>
-                            )}
-                            <a
-                              href={job.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn-primary"
-                              style={{ padding: "8px 16px", fontSize: 12 }}
-                            >
-                              {t("results.apply")}
-                            </a>
-                          </div>
-                        </div>
-
-                        {/* Platform Trust & Payment info box */}
-                        {job.trust_badge && (
-                          <div style={{
-                            marginTop: 12, padding: "8px 12px", borderRadius: 8,
-                            background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.06)",
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            flexWrap: "wrap", gap: 10, fontSize: 12
-                          }}>
-                            <span style={{ fontWeight: 600, color: "#e4e4e7" }}>
-                              {translateTag(job.trust_badge, language)}
-                            </span>
-                            {job.payment_methods && job.payment_methods.length > 0 && (
-                              <span style={{ color: "#a1a1aa" }}>
-                                💳 {t("results.paymentMethods")}: {translateTags(job.payment_methods, language).join(", ")}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Matched skills */}
-                        {job.matched_skills && job.matched_skills.length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 14 }}>
-                            {job.matched_skills.map((s, i) => (
-                              <span key={i} className="skill-tag matched">✓ {s}</span>
-                            ))}
-                            {job.missing_skills?.slice(0, 3).map((s, i) => (
-                              <span key={i} className="skill-tag missing">+ {s}</span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                {/* Top-Tier Section Header */}
+                {primaryJobs.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 4,
+                        background: "rgba(255,255,255,0.08)", color: "#ffffff", border: "1px solid rgba(255,255,255,0.15)"
+                      }}>
+                        🎯 {language === "ko" ? "최적화 맞춤 추천" : "Top Recommended Matches"}
+                      </span>
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {primaryJobs.length}{language === "ko" ? "개 우선 추천 공고" : " primary vacancies"}
+                      </span>
                     </div>
                   </div>
+                )}
+
+                {/* Top-Tier Cards */}
+                {primaryJobs.map((job) => (
+                  <JobCard key={job.job_id} job={job} language={language} t={t} />
                 ))}
+
+                {/* Visual Separator for Extended / Broader Opportunities (겉절이) */}
+                {secondaryJobs.length > 0 && (
+                  <div>
+                    <div className="extended-results-divider">
+                      <div className="extended-divider-line" />
+                      <div className="extended-divider-badge">
+                        <span>🌐 {language === "ko" ? "추가 탐색 기회 (기타 지역 및 인접 직무 · 겉절이 추천)" : "Extended Discovery & Adjacent Opportunities"}</span>
+                        <span style={{
+                          fontSize: 11, padding: "2px 8px", borderRadius: 12,
+                          background: "rgba(255,255,255,0.1)", color: "#a1a1aa"
+                        }}>
+                          {secondaryJobs.length}{language === "ko" ? "개 추가 공고" : " more"}
+                        </span>
+                      </div>
+                      <div className="extended-divider-line right" />
+                    </div>
+
+                    <p style={{
+                      textAlign: "center", marginBottom: 18, color: "var(--text-muted)", fontSize: 12
+                    }}>
+                      💡 {language === "ko"
+                        ? "희망 지역 외 전국/해외 공고 및 인접 직무에서 발굴된 기회입니다. 스크롤을 내려 다양한 가능성을 탐색해보세요."
+                        : "Broadened opportunities across other cities, nationwide roles, and adjacent job families. Scroll down to discover more."}
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      {secondaryJobs.map((job) => (
+                        <JobCard key={job.job_id} job={job} language={language} t={t} />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* TABLE VIEW */
@@ -400,63 +530,36 @@ function ResultsContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredJobs.map((job) => (
-                      <tr key={job.job_id}>
-                        <td>
-                          <span style={{
-                            fontWeight: 800, fontSize: 14, color: "#ffffff",
-                            padding: "3px 8px", borderRadius: 6,
-                            background: "rgba(255, 255, 255, 0.08)"
-                          }}>
-                            {Math.round(job.match_score)}%
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: "#fafafa" }}>{job.company}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>{job.platform}</div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: "#ffffff" }}>{job.title}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {translateTag(job.location || "Remote / Korea", language)}</div>
-                        </td>
-                        <td>
-                          <span className="badge-contract">
-                            {translateTag(job.contract_type || (language === "en" ? "Full-time" : "정규직"), language)}
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ fontSize: 12, color: "#e4e4e7" }}>
-                            {translateTag(job.salary_amount || (language === "en" ? "Negotiable" : "협의"), language)}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: 11, color: "#a1a1aa" }}>
-                            {translateTag(job.trust_badge || (language === "en" ? "Verified" : "검증 완료"), language)}
-                          </div>
-                          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                            {translateTags(job.payment_methods || [language === "en" ? "Direct Bank Transfer" : "통장 입금"], language).join(", ")}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, maxWidth: 220 }}>
-                            {job.matched_skills?.slice(0, 3).map((s, i) => (
-                              <span key={i} className="skill-tag matched" style={{ fontSize: 10, padding: "1px 5px" }}>{s}</span>
-                            ))}
-                          </div>
-                        </td>
-                        <td>
-                          <a
-                            href={job.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-primary"
-                            style={{ padding: "5px 12px", fontSize: 11, whiteSpace: "nowrap" }}
-                          >
-                            {t("results.apply")}
-                          </a>
-                        </td>
-                      </tr>
+                    {/* Primary Matches */}
+                    {primaryJobs.map((job) => (
+                      <TableRow key={job.job_id} job={job} language={language} t={t} />
                     ))}
+
+                    {/* Table View Divider */}
+                    {secondaryJobs.length > 0 && (
+                      <>
+                        <tr>
+                          <td colSpan={8} style={{ padding: "18px 0", background: "rgba(0,0,0,0.4)" }}>
+                            <div className="extended-results-divider" style={{ margin: "0 auto", maxWidth: "90%" }}>
+                              <div className="extended-divider-line" />
+                              <div className="extended-divider-badge">
+                                <span>🌐 {language === "ko" ? "추가 탐색 기회 (기타 지역 및 인접 직무 · 겉절이)" : "Extended Discovery & Adjacent Opportunities"}</span>
+                                <span style={{
+                                  fontSize: 11, padding: "2px 8px", borderRadius: 12,
+                                  background: "rgba(255,255,255,0.1)", color: "#a1a1aa"
+                                }}>
+                                  {secondaryJobs.length}{language === "ko" ? "개 추가 공고" : " more"}
+                                </span>
+                              </div>
+                              <div className="extended-divider-line right" />
+                            </div>
+                          </td>
+                        </tr>
+                        {secondaryJobs.map((job) => (
+                          <TableRow key={job.job_id} job={job} language={language} t={t} />
+                        ))}
+                      </>
+                    )}
                   </tbody>
                 </table>
               </div>
