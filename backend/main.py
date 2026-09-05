@@ -102,12 +102,15 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["Health"])
     async def health_check() -> JSONResponse:
         """Liveness probe – returns 200 when the server is running."""
+        has_key = bool(
+            (os.getenv("GEMINI_API_KEY") or os.getenv("Value") or os.getenv("GEMINI_KEY") or "").strip()
+        )
         return JSONResponse(
             content={
                 "status": "ok",
                 "service": "damoa-backend",
                 "version": "1.0.0",
-                "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
+                "gemini_configured": has_key,
             }
         )
 
