@@ -107,6 +107,7 @@ def create_app() -> FastAPI:
                 "status": "ok",
                 "service": "damoa-backend",
                 "version": "1.0.0",
+                "gemini_configured": bool(os.getenv("GEMINI_API_KEY", "").strip()),
             }
         )
 
