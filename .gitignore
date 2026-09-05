@@ -1,0 +1,37 @@
+# Environment and Secrets (CRITICAL)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+backend/venv/
+venv/
+__pycache__/
+*.py[cod]
+*.class
+*.sqlite
+*.sqlite3
+*.db
+backend/damoa.db
+backend/uploads/
+
+# Node.js / Frontend
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+.next/
+build/
+dist/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Scripts / Scratch
+test_search.py
+scratch/
