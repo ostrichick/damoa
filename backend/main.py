@@ -83,8 +83,22 @@ def create_app() -> FastAPI:
     app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
     # -----------------------------------------------------------------------
-    # Health check
+    # Health check & Root
     # -----------------------------------------------------------------------
+    @app.get("/", tags=["Root"])
+    async def root() -> JSONResponse:
+        """Root endpoint – friendly welcome status."""
+        return JSONResponse(
+            content={
+                "status": "ok",
+                "service": "Damoa Backend API",
+                "version": "1.0.0",
+                "message": "Damoa backend is running live!",
+                "docs": "/docs",
+                "health": "/health",
+            }
+        )
+
     @app.get("/health", tags=["Health"])
     async def health_check() -> JSONResponse:
         """Liveness probe – returns 200 when the server is running."""
