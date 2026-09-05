@@ -66,8 +66,27 @@ export default function Navbar({ currentStep }: NavbarProps) {
           </div>
         )}
 
-        {/* Right tools: Language Toggle + CTA */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        {/* Right tools: Admin Sources + Language Toggle + CTA */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Admin Sources Link */}
+          <Link
+            href="/admin/sources"
+            className="btn-secondary"
+            style={{
+              padding: "5px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              textDecoration: "none",
+            }}
+            title={language === "ko" ? "크롤러 소스 및 우선순위 모니터 (관리자 전용)" : "Crawler Sources & Priorities (Admin Only)"}
+          >
+            <span>⚙️</span>
+            <span>{language === "ko" ? "크롤러 소스" : "Sources"}</span>
+          </Link>
+
           {/* Language Toggle */}
           <div style={{
             display: "inline-flex",

@@ -145,7 +145,20 @@
     - 환경 변수 파서에 다중 폴백 적용 (`GEMINI_API_KEY` 뿐만 아니라 `Value`, `GEMINI_KEY` 등 어떤 필드로 주입되어도 안전하게 파싱).
     - Google GenAI의 최신 활성 모델인 `gemini-3.6-flash`를 기본 분석 모델로 탑재하여 즉각적이고 안정적인 이력서 분석 보장.
   - `backend/main.py`:
-    - `/health` 헬스체크 엔드포인트에서 `gemini_configured`를 실시간 체크하도록 업데이트.
+#### 8. 영문 모드 시 공고 태그/정산/급여 자동 영문 번역 & 관리자 크롤러 소스 모니터 페이지 구축
+- **사용자 요청**:
+  1. *"인터페이스가 영어인데 이렇게 정규직, 회사내규, 통장입금 이런식으로 적어놓으면 이해 못하지..."*
+  2. *"관리자인 나만 볼수있게 니가 구인공고를 크롤링할때 찾는 모든 사이트의 목록을 우선순위와 함께 볼 수있는 페이지랑 그 페이지로 들어가는 버튼을 하나 만들어줘"*
+- **수정 내용**:
+  - **영문 태그/필드 전용 번역 유틸리티 (`frontend/app/utils/tagTranslator.ts`)**:
+    - `language === 'en'`일 때 한국어 크롤링 결과(정규직 -> Full-time, 회사내규에 따름 -> Per company policy, 정식 채용 공고 -> Official Job Listing, 통장 직접 입금 -> Direct Bank Transfer, 채용시 마감 -> Until filled 등)를 자동으로 자연스러운 영어로 치환.
+    - `results/page.tsx`의 카드 뷰 및 테이블 뷰의 모든 뱃지, 급여, 신뢰도, 정산 수단에 실시간 적용.
+  - **관리자 전용 크롤러 소스 및 우선순위 대시보드 (`frontend/app/admin/sources/page.tsx`)**:
+    - 다모아가 실시간 크롤링하는 모든 플랫폼(사람인, 원티드, RemoteOK, LinkedIn, Outlier, DataAnnotation, OneForma 등)의 우선순위(Tier 1, Tier 2, DB), 수집 방식(API vs Scraper), 응답 속도, 지원 정산 수단, 쿼리 전략 목록을 표 및 카드형으로 제공.
+    - 부부 듀얼 타겟 라우팅 전략(아내 Nicole 님: 전주/서울 오프라인 현장직, 통번역 / 남편 최문성 님: 글로벌 원격 AI 평가)을 한눈에 확인할 수 있는 매트릭스 탑재.
+    - 백엔드 및 Gemini AI 실시간 연결 진단 버튼(`Run Live Diagnostics`) 제공.
+  - **네비게이션 바 바로가기 버튼 (`frontend/app/components/Navbar.tsx`)**:
+    - 네비게이션 상단 및 결과 페이지 헤더에 `[ ⚙️ Sources / 크롤러 소스 ]` 관리자 버튼 추가.
 
 ---
 
