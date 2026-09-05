@@ -20,13 +20,17 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configure Gemini client
+# Configure Gemini client dynamically
 # ---------------------------------------------------------------------------
-_API_KEY = os.getenv("GEMINI_API_KEY", "")
-_client: genai.Client | None = None
-
-if _API_KEY:
-    _client = genai.Client(api_key=_API_KEY)
+def _get_client() -> genai.Client | None:
+    api_key = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+    if not api_key:
+        return None
+    try:
+        return genai.Client(api_key=api_key)
+    except Exception as exc:
+        logger.error("Failed to initialize genai.Client: %s", exc)
+        return None
 
 # Fallback chain: try active models in order until one works
 _MODEL_CANDIDATES = [
@@ -92,8 +96,9 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
     Tries each model in _MODEL_CANDIDATES until one succeeds.
     Falls back to a skeleton profile if all fail.
     """
-    if not _client:
-        logger.warning("GEMINI_API_KEY not set - returning skeleton profile.")
+    client = _get_client()
+    if not client:
+        logger.warning("GEMINI_API_KEY not set or empty - returning skeleton profile.")
         return _skeleton_profile()
 
     prompt = f"Here is the resume text to analyse:\n\n{resume_text}"
@@ -102,7 +107,7 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
     for model_name in _MODEL_CANDIDATES:
         try:
             logger.info("Trying Gemini model: %s", model_name)
-            response = _client.models.generate_content(
+            response = client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
