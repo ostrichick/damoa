@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, DragEvent, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { useLanguage } from "../context/LanguageContext";
+import ErrorAlert from "../components/ErrorAlert";
 
 type UploadMode = "file" | "linkedin" | "text";
 type AnalysisStep = "idle" | "uploading" | "parsing" | "analyzing" | "done" | "error";
@@ -437,15 +438,12 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Error message */}
-        {error && (
-          <div style={{
-            padding: "14px 18px", borderRadius: 10, marginBottom: 20,
-            background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.25)",
-            color: "#f87171", fontSize: 13
-          }}>
-            ⚠️ {error}
-          </div>
+        {/* Structured Step-Based Error Alert */}
+        {error && <ErrorAlert error={error} onRetry={handleSubmit} />}
+
+        {/* Warning if profile summary indicates AI analysis error */}
+        {profile && (profile.summary.includes("Step 2") || profile.summary.includes("API key") || profile.summary.includes("unavailable")) && (
+          <ErrorAlert error={profile.summary} />
         )}
 
         {/* 2. Candidate Profile Review and Search Preference Settings */}

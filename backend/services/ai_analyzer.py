@@ -106,7 +106,7 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
     client = _get_client()
     if not client:
         logger.warning("GEMINI_API_KEY not set or empty - returning skeleton profile.")
-        return _skeleton_profile()
+        return _skeleton_profile("GEMINI_API_KEY is not configured on the server. Please verify GEMINI_API_KEY in Render Environment Variables.")
 
     prompt = f"Here is the resume text to analyse:\n\n{resume_text}"
     last_error: Exception | None = None
@@ -141,7 +141,7 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
             continue
 
     logger.error("All Gemini models failed. Last error: %s", last_error)
-    return _skeleton_profile()
+    return _skeleton_profile(f"Google Gemini model request failed ({last_error}). Please check API quota or rate limits.")
 
 
 # ---------------------------------------------------------------------------
@@ -235,8 +235,13 @@ def _infer_level(years: float) -> str:
     return "lead"
 
 
-def _skeleton_profile() -> dict[str, Any]:
-    """Return a blank profile when AI analysis is unavailable."""
+def _skeleton_profile(error_reason: str = "") -> dict[str, Any]:
+    """Return a blank profile when AI analysis is unavailable with clear error reason."""
+    summary_msg = (
+        f"[Step 2: AI Analysis Error / 2단계: AI 분석 오류] {error_reason}"
+        if error_reason
+        else "[Step 2: AI Analysis Error / 2단계: AI 분석 오류] Gemini API 키가 설정되지 않았습니다. Render 환경 변수(GEMINI_API_KEY)를 확인해주세요."
+    )
     return {
         "name": "",
         "email": "",
@@ -248,5 +253,5 @@ def _skeleton_profile() -> dict[str, Any]:
         "level": "mid",
         "domains": [],
         "languages": [],
-        "summary": "Profile analysis unavailable - please check your API key.",
+        "summary": summary_msg,
     }
