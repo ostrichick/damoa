@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import Navbar from "../components/Navbar";
 import { useLanguage } from "../context/LanguageContext";
+import { translateTag, translateTags } from "../utils/tagTranslator";
 
 interface Job {
   job_id: number;
@@ -209,6 +210,9 @@ function ResultsContent() {
               <Link href="/upload" className="btn-secondary" style={{ padding: "6px 12px", fontSize: 12 }}>
                 {t("results.back")}
               </Link>
+              <Link href="/admin/sources" className="btn-secondary" style={{ padding: "6px 10px", fontSize: 12 }} title="Admin Crawler Sources">
+                ⚙️ {language === "ko" ? "크롤러 소스" : "Sources"}
+              </Link>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: "#fafafa" }}>
                 {t("results.title")}
               </h1>
@@ -328,16 +332,16 @@ function ResultsContent() {
                               {job.title}
                             </h3>
                             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                              📍 {job.location || "Remote / Korea"} {job.posted_date ? `· ${job.posted_date}` : ""}
+                              📍 {translateTag(job.location || "Remote / Korea", language)} {job.posted_date ? `· ${translateTag(job.posted_date, language)}` : ""}
                             </p>
                           </div>
 
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                             {job.contract_type && (
-                              <span className="badge-contract">{job.contract_type}</span>
+                              <span className="badge-contract">{translateTag(job.contract_type, language)}</span>
                             )}
                             {job.salary_amount && (
-                              <span className="badge-salary-type">💰 {job.salary_amount}</span>
+                              <span className="badge-salary-type">💰 {translateTag(job.salary_amount, language)}</span>
                             )}
                             <a
                               href={job.url}
@@ -360,11 +364,11 @@ function ResultsContent() {
                             flexWrap: "wrap", gap: 10, fontSize: 12
                           }}>
                             <span style={{ fontWeight: 600, color: "#e4e4e7" }}>
-                              {job.trust_badge}
+                              {translateTag(job.trust_badge, language)}
                             </span>
                             {job.payment_methods && job.payment_methods.length > 0 && (
                               <span style={{ color: "#a1a1aa" }}>
-                                💳 {t("results.paymentMethods")}: {job.payment_methods.join(", ")}
+                                💳 {t("results.paymentMethods")}: {translateTags(job.payment_methods, language).join(", ")}
                               </span>
                             )}
                           </div>
@@ -420,17 +424,25 @@ function ResultsContent() {
                         </td>
                         <td>
                           <div style={{ fontWeight: 600, color: "#ffffff" }}>{job.title}</div>
-                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {job.location || "Remote / Korea"}</div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {translateTag(job.location || "Remote / Korea", language)}</div>
                         </td>
                         <td>
-                          <span className="badge-contract">{job.contract_type || "정규직"}</span>
+                          <span className="badge-contract">
+                            {translateTag(job.contract_type || (language === "en" ? "Full-time" : "정규직"), language)}
+                          </span>
                         </td>
                         <td>
-                          <span style={{ fontSize: 12, color: "#e4e4e7" }}>{job.salary_amount || "협의"}</span>
+                          <span style={{ fontSize: 12, color: "#e4e4e7" }}>
+                            {translateTag(job.salary_amount || (language === "en" ? "Negotiable" : "협의"), language)}
+                          </span>
                         </td>
                         <td>
-                          <div style={{ fontSize: 11, color: "#a1a1aa" }}>{job.trust_badge || "검증 완료"}</div>
-                          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{job.payment_methods?.join(", ") || "통장 입금"}</div>
+                          <div style={{ fontSize: 11, color: "#a1a1aa" }}>
+                            {translateTag(job.trust_badge || (language === "en" ? "Verified" : "검증 완료"), language)}
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                            {translateTags(job.payment_methods || [language === "en" ? "Direct Bank Transfer" : "통장 입금"], language).join(", ")}
+                          </div>
                         </td>
                         <td>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 3, maxWidth: 220 }}>
