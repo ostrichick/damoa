@@ -58,6 +58,24 @@ KNOWN_SKILLS: list[str] = [
     "Localization", "Translation", "Content Moderation",
     "Instruction Following", "RLHF", "SFT", "Quality Assurance",
 
+    # --- Communications, Marketing & Content Creation ---
+    "Digital Marketing", "Social Media", "Social Media Management", "Social Media Marketing",
+    "Content Creation", "Content Creator", "Content Marketing", "Copywriting",
+    "Meta Business Suite", "Facebook Ads", "Instagram Marketing", "YouTube SEO",
+    "YouTube Analytics", "Canva", "Video Editing", "Audiovisual Communications",
+    "Public Relations", "PR", "Community Management", "Multilingual Communication",
+    "Market Research", "Campaign Management",
+
+    # --- Interpretation & Translation ---
+    "Medical Interpreter", "Medical Interpretation", "Healthcare Interpretation",
+    "Simultaneous Interpretation", "Consecutive Interpretation",
+    "Spanish Interpretation", "English Interpretation", "Document Translation",
+
+    # --- Language Teaching & Education ---
+    "English Teaching", "Spanish Teaching", "Language Instructor", "ESL", "EFL",
+    "Foreign Language Instructor", "Tutoring", "Curriculum Development",
+    "Student Assessment", "Digital Classroom",
+
     # --- Mobile ---
     "Android", "iOS", "Flutter", "React Native", "Xamarin",
     "Jetpack Compose", "SwiftUI", "UIKit",

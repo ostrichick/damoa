@@ -130,6 +130,14 @@ async def _build_search_query(
     # 1. If user provided a natural language custom prompt, prioritize its essence
     if custom_prompt and custom_prompt.strip():
         cp_lower = custom_prompt.lower()
+        if any(w in custom_prompt or w in cp_lower for w in ("스페인어", "spanish")):
+            return "스페인어"
+        if any(w in custom_prompt or w in cp_lower for w in ("영어 강사", "english teacher", "강사", "teaching", "tutor")):
+            return "영어 강사"
+        if any(w in custom_prompt or w in cp_lower for w in ("마케팅", "marketing", "소셜미디어", "social media", "콘텐츠")):
+            return "콘텐츠 마케팅"
+        if any(w in custom_prompt or w in cp_lower for w in ("통역", "번역", "interpreter", "translation")):
+            return "통역"
         if "한국어" in custom_prompt or "korean" in cp_lower:
             if any(w in custom_prompt or w in cp_lower for w in ("ai", "데이터", "평가", "llm", "트레이너")):
                 return "Korean AI"
@@ -137,14 +145,36 @@ async def _build_search_query(
         if any(w in custom_prompt or w in cp_lower for w in ("ai", "데이터", "평가", "llm", "트레이너")):
             return "AI Data"
 
-    # 2. Check profile skills and role
+    # 2. Check profile skills, domains, and summary
     skills = profile.get("skills", [])
-    skills_text = " ".join(skills).lower()
+    domains = profile.get("domains", [])
+    languages = profile.get("languages", [])
+    summary = profile.get("summary", "")
+    all_text = f"{' '.join(skills)} {' '.join(domains)} {' '.join(languages)} {summary}".lower()
 
-    if any(term in skills_text for term in ("annotation", "라벨링", "evaluat", "평가", "korean language", "한국어")):
+    # Multilingual & Language roles (e.g. Spanish, English Teacher, Interpreter)
+    if "spanish" in all_text or "스페인어" in all_text:
+        if any(term in all_text for term in ("interpret", "통역", "translat", "번역")):
+            return "스페인어 통역"
+        if any(term in all_text for term in ("teach", "instructor", "tutor", "강사")):
+            return "스페인어 강사"
+        return "스페인어"
+
+    if any(term in all_text for term in ("medical interpreter", "interpreter", "통역", "translator", "번역")):
+        return "통역"
+
+    if any(term in all_text for term in ("english teaching", "language instructor", "esl", "영어 강사")):
+        return "영어 강사"
+
+    # Marketing, Content Creation, Communications
+    if any(term in all_text for term in ("digital marketing", "social media", "content creation", "content creator", "audiovisual")):
+        return "콘텐츠 마케팅"
+
+    # AI Data & Annotation
+    if any(term in all_text for term in ("annotation", "라벨링", "evaluat", "평가", "korean language", "한국어")):
         return "Korean AI"
 
-    if any(term in skills_text for term in ("ai", "llm", "machine learning", "deep learning", "nlp")):
+    if any(term in all_text for term in ("ai", "llm", "machine learning", "deep learning", "nlp")):
         return "AI Data"
 
     # 3. For developer profiles, pick top 1-2 short skill names (e.g. Python, React)
@@ -152,7 +182,7 @@ async def _build_search_query(
     if short_skills:
         return " ".join(short_skills)
 
-    return "AI"
+    return "Marketing" if "marketing" in all_text else "AI"
 
 
 async def _save_search(

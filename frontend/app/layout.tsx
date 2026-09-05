@@ -13,13 +13,15 @@ export const metadata: Metadata = {
   },
 };
 
+import { LanguageProvider } from "./context/LanguageContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -27,7 +29,9 @@ export default function RootLayout({
       <body>
         <div className="bg-canvas" aria-hidden="true" />
         <div style={{ position: "relative", zIndex: 1 }}>
-          {children}
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
         </div>
       </body>
     </html>
