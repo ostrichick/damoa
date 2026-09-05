@@ -110,7 +110,7 @@ async def _get_profile_from_db(db: aiosqlite.Connection, resume_id: int) -> dict
     if not rows:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resume with id={resume_id} not found. Please upload a resume first.",
+            detail=f"[Step 3-A: Profile Load / 3-A단계 이력서 조회 오류] 이력서 번호(id={resume_id})를 데이터베이스에서 찾을 수 없습니다. 이력서를 먼저 업로드해주세요.",
         )
     row = rows[0]
     profile: dict[str, Any] = from_json(row["ai_profile"]) or {}  # type: ignore[arg-type]

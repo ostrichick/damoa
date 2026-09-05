@@ -7,6 +7,7 @@ import { Suspense } from "react";
 import Navbar from "../components/Navbar";
 import { useLanguage } from "../context/LanguageContext";
 import { translateTag, translateTags } from "../utils/tagTranslator";
+import ErrorAlert from "../components/ErrorAlert";
 
 interface Job {
   job_id: number;
@@ -283,15 +284,7 @@ function ResultsContent() {
         )}
 
         {/* Error state */}
-        {error && (
-          <div style={{
-            padding: "16px 20px", borderRadius: 10,
-            background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)",
-            color: "#f87171", fontSize: 14, marginBottom: 24
-          }}>
-            ⚠️ {error}
-          </div>
-        )}
+        {error && <ErrorAlert error={error} onRetry={startSearch} />}
 
         {/* Results List */}
         {!loading && !error && (

@@ -160,7 +160,7 @@ async def upload_resume(
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No filename provided",
+            detail="[Step 1: File Upload / 1단계 파일 전송] 업로드된 파일명이 없습니다. / No filename provided.",
         )
 
     # Size guard (read lazily)
@@ -168,7 +168,7 @@ async def upload_resume(
     if len(file_bytes) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File too large. Maximum allowed size is {MAX_FILE_SIZE_BYTES // (1024*1024)} MB.",
+            detail=f"[Step 1: File Size / 1단계 파일 용량 초과] 파일 용량이 너무 큽니다 ({len(file_bytes) // (1024*1024)}MB). 최대 {MAX_FILE_SIZE_BYTES // (1024*1024)}MB 이하만 업로드 가능합니다.",
         )
 
     # Parse raw text
@@ -177,19 +177,19 @@ async def upload_resume(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=str(exc),
+            detail=f"[Step 1: File Format / 1단계 파일 형식 오류] 지원되지 않는 파일 포맷입니다: {exc}",
         ) from exc
     except Exception as exc:
         logger.exception("Failed to parse resume file: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Failed to extract text from the document. Please ensure it is not corrupted.",
+            detail=f"[Step 1: Text Extraction / 1단계 텍스트 추출 오류] 문서에서 텍스트를 추출하지 못했습니다 ({exc}). 파일이 손상되었거나 암호가 걸려있는지 확인해주세요.",
         ) from exc
 
     if not content_text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No text could be extracted from the document. It may be a scanned image.",
+            detail="[Step 1: Text Extraction / 1단계 텍스트 없음] 문서에서 읽을 수 있는 텍스트가 없습니다. 스캔 이미지 전용 PDF인 경우 텍스트 복사가 가능한 문서를 올려주세요.",
         )
 
     # AI analysis
@@ -199,7 +199,7 @@ async def upload_resume(
         logger.exception("AI analysis failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI analysis service is temporarily unavailable. Please try again later.",
+            detail=f"[Step 2: Gemini AI Analysis / 2단계 AI 역량 분석 오류] AI 이력서 분석 서비스와 통신 중 문제가 발생했습니다: {exc}",
         ) from exc
 
     # Persist

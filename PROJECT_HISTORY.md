@@ -157,8 +157,17 @@
     - 다모아가 실시간 크롤링하는 모든 플랫폼(사람인, 원티드, RemoteOK, LinkedIn, Outlier, DataAnnotation, OneForma 등)의 우선순위(Tier 1, Tier 2, DB), 수집 방식(API vs Scraper), 응답 속도, 지원 정산 수단, 쿼리 전략 목록을 표 및 카드형으로 제공.
     - 부부 듀얼 타겟 라우팅 전략(아내 Nicole 님: 전주/서울 오프라인 현장직, 통번역 / 남편 최문성 님: 글로벌 원격 AI 평가)을 한눈에 확인할 수 있는 매트릭스 탑재.
     - 백엔드 및 Gemini AI 실시간 연결 진단 버튼(`Run Live Diagnostics`) 제공.
-  - **네비게이션 바 바로가기 버튼 (`frontend/app/components/Navbar.tsx`)**:
-    - 네비게이션 상단 및 결과 페이지 헤더에 `[ ⚙️ Sources / 크롤러 소스 ]` 관리자 버튼 추가.
+#### 9. 단계별 진단 에러 카드 시스템 구축 (어느 단계에서 무슨 에러인지 직관적 파악)
+- **사용자 요청**: *"그리고 에러메세지를 만들때 어느단계에서 무슨에러가 난건지 파악하기 쉽게 에러메세지를 만들어줘"*
+- **수정 내용**:
+  - **백엔드 단계별 에러 코드 표준화**:
+    - `Step 1 (파일 전송 및 텍스트 추출)`: 파일 크기 초과(10MB), 미지원 포맷, 텍스트 미추출/스캔 이미지 감지 시 `[Step 1: File Parsing]` 태그 반환.
+    - `Step 2 (Gemini AI 역량 분석)`: `GEMINI_API_KEY` 미등록, Quota 초과, 네트워크 지연 시 `[Step 2: AI Analysis Error]` 태그와 상세 원인 반환.
+    - `Step 3 (다중 플랫폼 채용 크롤링)`: 사람인/원티드/RemoteOK/LinkedIn 크롤링 타임아웃 시 `[Step 3: Multi-Platform Crawling]` 태그 반환.
+    - `Step 4 (4요소 적합도 점수 계산)`: 매칭 엔진 계산 오류 시 `[Step 4: AI Matching Engine]` 태그 반환.
+  - **프론트엔드 에러 파서 및 진단 컴포넌트 (`frontend/app/utils/errorParser.ts`, `components/ErrorAlert.tsx`)**:
+    - 단순 텍스트 에러 창 대신, **[STEP 번호 / 단계명] + [원인 요약] + [상세 설명] + [💡 즉시 해결 방법 가이드] + [상세 기술 로그(관리자용)]**로 구성된 구조화된 에러 진단 카드 렌더링.
+    - `upload/page.tsx` 및 `results/page.tsx`에 전면 적용.
 
 ---
 
