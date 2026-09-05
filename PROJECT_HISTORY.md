@@ -136,8 +136,16 @@
     - 아내분의 스킬을 감지하여 원티드/사람인/링크드인에서 `스페인어 통역`, `영어 강사`, `콘텐츠 마케팅` 등의 한국 내 실제 공고를 수집하도록 쿼리 생성 최적화.
   - **오프라인 근무지 프리셋 추가**:
     - `🇰🇷 한국 전체 (Korea)`, `📍 전주 (Jeonju)`, `🏙️ 서울 (Seoul)`, `🌐 글로벌 원격 (Remote)` 빠른 선택 칩 제공.
-  - **부부 다중 프로필 관리 (`upload/page.tsx`)**:
-    - 남편(최문성 님)과 아내(Nicole Salinas 님)의 이력서를 브라우저에 모두 기억하여, 각자의 카드를 클릭해 1초 만에 전환하며 구직할 수 있는 다중 프로필 시스템 탑재.
+#### 7. 클라우드 배포(Render) 환경변수 유연 처리 및 최신 Gemini 3.6 모델 연동
+- **사용자 이슈**: 
+  - 이력서 업로드 시 *"Profile analysis unavailable - please check your API key."* 문구가 뜨며 분석 실패.
+  - Render 환경 변수 설정 화면에서 변수명(`Key`)과 값(`Value`) 입력 칸이 서로 엇갈려 설정되어 있어 `GEMINI_API_KEY` 환경변수가 읽히지 않는 문제 발생.
+- **수정 내용**:
+  - `backend/services/ai_analyzer.py`:
+    - 환경 변수 파서에 다중 폴백 적용 (`GEMINI_API_KEY` 뿐만 아니라 `Value`, `GEMINI_KEY` 등 어떤 필드로 주입되어도 안전하게 파싱).
+    - Google GenAI의 최신 활성 모델인 `gemini-3.6-flash`를 기본 분석 모델로 탑재하여 즉각적이고 안정적인 이력서 분석 보장.
+  - `backend/main.py`:
+    - `/health` 헬스체크 엔드포인트에서 `gemini_configured`를 실시간 체크하도록 업데이트.
 
 ---
 

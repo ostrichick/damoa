@@ -20,10 +20,17 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configure Gemini client dynamically
-# ---------------------------------------------------------------------------
+def _get_api_key() -> str:
+    return (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("Value")
+        or os.getenv("GEMINI_KEY")
+        or ""
+    ).strip().strip('"').strip("'")
+
+
 def _get_client() -> genai.Client | None:
-    api_key = os.getenv("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+    api_key = _get_api_key()
     if not api_key:
         return None
     try:
