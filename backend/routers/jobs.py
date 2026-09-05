@@ -352,14 +352,55 @@ async def search_jobs(
 
     _search_status[search_id] = "running"
 
-    # Run crawl synchronously for immediate results (up to num_results)
+    # Run crawl: both primary targeted jobs and broader extended discovery (겉절이)
     try:
-        jobs = await crawl_multi_platform_jobs(
-            query=query,
-            location=body.location,
-            num_jobs=body.num_results,
-        )
-        matched = match_jobs_to_profile(profile, jobs)
+        crawl_tasks = [
+            crawl_multi_platform_jobs(
+                query=query,
+                location=body.location,
+                num_jobs=max(20, body.num_results),
+            )
+        ]
+
+        # If user specified a narrow location, also crawl nationwide vacancies
+        if body.location and body.location.lower() not in ("remote", "korea", "전국", "worldwide"):
+            crawl_tasks.append(
+                crawl_multi_platform_jobs(
+                    query=query,
+                    location="전국",
+                    num_jobs=15,
+                )
+            )
+
+        # Also add adjacent keyword searches based on profile skills
+        skills = profile.get("skills", [])
+        domains = profile.get("domains", [])
+        combined_skills = " ".join(skills + domains).lower()
+
+        if "spanish" in combined_skills or "스페인어" in combined_skills:
+            crawl_tasks.append(crawl_multi_platform_jobs(query="통역", location="", num_jobs=10))
+            crawl_tasks.append(crawl_multi_platform_jobs(query="영어 강사", location="", num_jobs=10))
+        elif "marketing" in combined_skills or "마케팅" in combined_skills:
+            crawl_tasks.append(crawl_multi_platform_jobs(query="콘텐츠 마케팅", location="", num_jobs=10))
+        elif "ai" in combined_skills or "evaluat" in combined_skills:
+            crawl_tasks.append(crawl_multi_platform_jobs(query="AI Data", location="", num_jobs=10))
+        else:
+            crawl_tasks.append(crawl_multi_platform_jobs(query="Remote", location="", num_jobs=10))
+
+        crawl_results = await asyncio.gather(*crawl_tasks, return_exceptions=True)
+
+        seen_keys: set[str] = set()
+        all_jobs: list[dict[str, Any]] = []
+
+        for res in crawl_results:
+            if isinstance(res, list):
+                for j in res:
+                    key = f"{j.get('company', '').lower().strip()}:{j.get('title', '').lower().strip()}"
+                    if key not in seen_keys and j.get("title"):
+                        seen_keys.add(key)
+                        all_jobs.append(j)
+
+        matched = match_jobs_to_profile(profile, all_jobs)
 
         async for db in get_db():
             await _save_job_recommendations(db, search_id, matched)
@@ -368,7 +409,7 @@ async def search_jobs(
         _search_status[search_id] = "completed"
 
     except Exception as exc:
-        logger.error("Synchronous job search failed: %s", exc)
+        logger.error("Job search failed: %s", exc)
         matched = []
         _search_status[search_id] = "failed"
         async for db in get_db():
