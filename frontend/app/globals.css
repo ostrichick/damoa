@@ -326,6 +326,34 @@ body {
   transition: width 0.3s ease;
 }
 
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.progress-bar-fill-animated {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #3f3f46 0%, #ffffff 50%, #3f3f46 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite linear;
+  transition: width 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.match-reason-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e4e4e7;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 10px;
+}
+
 /* Extended Results Divider */
 .extended-results-divider {
   margin: 40px 0 24px 0;

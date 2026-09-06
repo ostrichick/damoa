@@ -71,6 +71,7 @@ class JobResult(BaseModel):
     payment_methods: Optional[list[str]] = ["통장 입금", "PayPal"]
     payment_cycle: Optional[str] = "월급 / 주급"
     trust_summary: Optional[str] = ""
+    match_reason: Optional[str] = ""
     score_breakdown: Optional[ScoreBreakdown] = None
 
 
@@ -436,6 +437,7 @@ async def search_jobs(
             payment_methods=j.get("payment_methods", ["통장 입금", "PayPal"]),
             payment_cycle=j.get("payment_cycle", "월급 / 주급"),
             trust_summary=j.get("trust_summary", ""),
+            match_reason=j.get("match_reason", ""),
             score_breakdown=(
                 ScoreBreakdown(**j["score_breakdown"])
                 if j.get("score_breakdown")
