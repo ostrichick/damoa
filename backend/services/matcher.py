@@ -323,6 +323,11 @@ def match_jobs_to_profile(
         else:
             match_reason = " · ".join(match_reason_parts)
 
+        if job.get("is_curated"):
+            match_reason = f"💡 AI 연관 역량 발굴: {match_reason}"
+        elif job.get("is_expanded"):
+            match_reason = f"💡 연관 직무 확장: {match_reason}"
+
         salary_type, salary_amount = _extract_salary_info(title + " " + description)
         contract_type = _extract_contract_type(title + " " + description)
 
