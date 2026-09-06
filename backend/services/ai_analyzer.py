@@ -30,6 +30,13 @@ def _get_api_key() -> str:
     ).strip().strip('"').strip("'")
 
 
+def _get_groq_api_key() -> str:
+    return (
+        os.getenv("GROQ_API_KEY")
+        or ""
+    ).strip().strip('"').strip("'")
+
+
 def _get_client() -> genai.Client | None:
     api_key = _get_api_key()
     if not api_key:
@@ -40,11 +47,18 @@ def _get_client() -> genai.Client | None:
         logger.error("Failed to initialize genai.Client: %s", exc)
         return None
 
-# Fallback chain: try ultra-fast lightweight active models first
+# High-intelligence Groq models (OpenAI 120B parameter & Qwen 27B)
+_GROQ_MODELS = [
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-20b",
+]
+
+# Fallback Gemini models
 _MODEL_CANDIDATES = [
+    "gemini-3.7-flash",
     "gemini-flash-lite-latest",
     "gemini-3.5-flash-lite",
-    "gemini-3.7-flash",
     "gemini-3.5-flash",
     "gemini-flash-latest",
 ]
@@ -99,18 +113,57 @@ Return this exact schema:
 
 
 # ---------------------------------------------------------------------------
-# Public function
+# Groq Analyzer (Primary: OpenAI 120B & Qwen 27B)
 # ---------------------------------------------------------------------------
-async def analyze_resume(resume_text: str) -> dict[str, Any]:
-    """
-    Send resume text to Gemini and return a structured profile dict.
-    Tries each model in _MODEL_CANDIDATES until one succeeds.
-    Falls back to a skeleton profile if all fail.
-    """
+async def _analyze_with_groq(resume_text: str) -> dict[str, Any] | None:
+    api_key = _get_groq_api_key()
+    if not api_key:
+        return None
+
+    import httpx
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    for model_name in _GROQ_MODELS:
+        try:
+            logger.info("Trying Groq model: %s", model_name)
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Here is the resume text to analyse:\n\n{resume_text}"},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.1,
+            }
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.post(url, headers=headers, json=payload)
+                if r.status_code == 200:
+                    raw_text = r.json()["choices"][0]["message"]["content"]
+                    raw_text = _strip_markdown_fences(raw_text)
+                    profile = json.loads(raw_text)
+                    profile = _normalise_profile(profile)
+                    logger.info("Resume analysis OK via Groq model=%s: %d skills found", model_name, len(profile.get("skills", [])))
+                    return profile
+                logger.warning("Groq model %s returned status %d: %s", model_name, r.status_code, r.text[:120])
+        except Exception as exc:
+            logger.warning("Groq model %s error: %s, trying next...", model_name, exc)
+            continue
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Gemini Analyzer (Fallback)
+# ---------------------------------------------------------------------------
+async def _analyze_with_gemini(resume_text: str) -> dict[str, Any]:
     client = _get_client()
     if not client:
         logger.warning("GEMINI_API_KEY not set or empty - returning skeleton profile.")
-        return _skeleton_profile("GEMINI_API_KEY is not configured on the server. Please verify GEMINI_API_KEY in Render Environment Variables.")
+        return _skeleton_profile("Neither GROQ_API_KEY nor GEMINI_API_KEY is configured.")
 
     prompt = f"Here is the resume text to analyse:\n\n{resume_text}"
     last_error: Exception | None = None
@@ -136,13 +189,13 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
             raw_text = _strip_markdown_fences(raw_text)
             profile: dict[str, Any] = json.loads(raw_text)
             profile = _normalise_profile(profile)
-            logger.info("Resume analysis OK with model=%s: %d skills found", model_name, len(profile.get("skills", [])))
+            logger.info("Resume analysis OK with Gemini model=%s: %d skills found", model_name, len(profile.get("skills", [])))
             return profile
 
         except json.JSONDecodeError as exc:
             logger.error("Model %s returned invalid JSON: %s", model_name, exc)
             last_error = exc
-            break  # JSON error means model responded but output was bad — don't retry others
+            break
         except asyncio.TimeoutError:
             logger.warning("Model %s timed out after 8s, trying next...", model_name)
             last_error = TimeoutError(f"Model {model_name} timed out")
@@ -153,7 +206,25 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
             continue
 
     logger.error("All Gemini models failed. Last error: %s", last_error)
-    return _skeleton_profile(f"Google Gemini model request failed ({last_error}). Please check API quota or rate limits.")
+    return _skeleton_profile(f"AI model request failed ({last_error}).")
+
+
+# ---------------------------------------------------------------------------
+# Public function
+# ---------------------------------------------------------------------------
+async def analyze_resume(resume_text: str) -> dict[str, Any]:
+    """
+    Send resume text to AI and return a structured profile dict.
+    1. First tries high-performance Groq models (openai/gpt-oss-120b, qwen/qwen3.8-27b).
+    2. If unavailable or fails, seamlessly falls back to Google Gemini.
+    """
+    # 1. Try Groq high-intelligence 120B models
+    groq_profile = await _analyze_with_groq(resume_text)
+    if groq_profile:
+        return groq_profile
+
+    # 2. Fallback to Google Gemini
+    return await _analyze_with_gemini(resume_text)
 
 
 # ---------------------------------------------------------------------------

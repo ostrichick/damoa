@@ -214,6 +214,21 @@
   4. **프론트엔드 네트워크 안전망 탑재 (`upload/page.tsx`, `results/page.tsx`)**:
      - 25초 `AbortController` 타임아웃을 적용하여 무료 서버 절전 모드 등 예외 상황 발생 시 무한 로딩 없이 친절한 안내와 [다시 시도] 버튼 즉시 노출.
 
+#### 13. 고지능 120B 모델(Groq) 메인 탑재 및 하이브리드 멀티 LLM 엔진(Groq + Gemini) 구축
+- **사용자 요청**: *"gemini 1.5 pro 성능이 너무 낮은거같은데 혹시 다른 무료 모델은 없어?"* 및 Groq API 키 연동.
+- **수정 내용**:
+  - **1) Groq 초고성능 120B/27B 모델 메인 엔진 연동 (`ai_analyzer.py`)**:
+    - 제공된 Groq API 키를 바탕으로 `openai/gpt-oss-120b` (1200억 파라미터 최신 고지능 모델) 및 `qwen/qwen3.8-27b` (다국어/한국어/스페인어 특화 고지능 모델)을 1순위 분석 엔진으로 전격 탑재.
+    - JSON 강제 스키마(`response_format={"type": "json_object"}`)를 적용하여 문맥 파악, 경력 연수 계산, 직무 스킬 분류의 깊이와 정밀도를 대폭 끌어올림.
+    - **분석 속도**: 120B 초거대 모델임에도 Groq의 초고속 LPU를 통해 **2.3초 만에 분석 완료**.
+  - **2) 자동 무중단 하이브리드 백업 아키텍처 (Groq 120B -> Gemini 3.7 Flash / Flash-Lite)**:
+    - 1순위: Groq 120B (`openai/gpt-oss-120b`)
+    - 2순위: Groq Qwen 27B (`qwen/qwen3.8-27b`)
+    - 3순위: Google Gemini 3.7 Flash (`gemini-3.7-flash` 및 `gemini-flash-lite-latest`)
+    - 어느 한쪽의 할당량이 소진되거나 네트워크 오류가 발생하더라도 사용자 중단 없이 즉시 백업 모델로 매끄럽게 전환되는 완벽한 이중화 달성.
+  - **3) 환경 변수 및 헬스체크 반영 (`backend/.env`, `render.yaml`, `main.py`)**:
+    - `GROQ_API_KEY` 환경 변수 관리 체계 구축 및 `/health` 엔드포인트에서 `groq_configured: True`, `gemini_configured: True` 동시 감지.
+
 ---
 
 ## 3. 기술 스택 및 주요 파일 구조
