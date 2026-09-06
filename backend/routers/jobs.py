@@ -388,7 +388,14 @@ async def search_jobs(
         else:
             crawl_tasks.append(crawl_multi_platform_jobs(query="Remote", location="", num_jobs=10))
 
-        crawl_results = await asyncio.gather(*crawl_tasks, return_exceptions=True)
+        try:
+            crawl_results = await asyncio.wait_for(
+                asyncio.gather(*crawl_tasks, return_exceptions=True),
+                timeout=6.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Crawl batch exceeded 6.0s, proceeding with available jobs")
+            crawl_results = []
 
         seen_keys: set[str] = set()
         all_jobs: list[dict[str, Any]] = []

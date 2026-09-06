@@ -197,6 +197,9 @@ export default function UploadPage() {
 
   const handleSubmit = async () => {
     setError("");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
     try {
       let uploadedProfile: ProfileData;
 
@@ -211,7 +214,12 @@ export default function UploadPage() {
         formData.append("file", file);
 
         setStep("parsing");
-        const res = await fetch(`${API_BASE}/api/resume/upload`, { method: "POST", body: formData });
+        const res = await fetch(`${API_BASE}/api/resume/upload`, {
+          method: "POST",
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error(await res.text());
         setStep("analyzing");
         const data: ResumeApiResponse = await res.json();
@@ -227,7 +235,9 @@ export default function UploadPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: resumeText }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error(await res.text());
         const data: ResumeApiResponse = await res.json();
         uploadedProfile = data.profile;
@@ -242,7 +252,9 @@ export default function UploadPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: `LinkedIn Profile URL: ${linkedinUrl}` }),
+          signal: controller.signal,
         });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error(await res.text());
         const data: ResumeApiResponse = await res.json();
         uploadedProfile = data.profile;
@@ -257,8 +269,14 @@ export default function UploadPage() {
       saveProfileToList(uploadedProfile);
 
     } catch (err: unknown) {
+      clearTimeout(timeoutId);
       setStep("error");
-      const message = err instanceof Error ? err.message : "An unexpected error occurred.";
+      let message = err instanceof Error ? err.message : "An unexpected error occurred.";
+      if (err instanceof Error && err.name === "AbortError") {
+        message = language === "ko"
+          ? "서버 응답 시간(25초)이 초과되었습니다. 무료 클라우드 서버가 절전 모드에서 깨어나는 중일 수 있으니 아래 [다시 시도]를 눌러주세요."
+          : "Request timed out (25s). Cloud server might be waking from sleep. Please click retry.";
+      }
       setError(message);
     }
   };
