@@ -168,72 +168,170 @@ def match_jobs_to_profile(
     jobs: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """
-    Score each job in *jobs* against *profile* and return the enriched list
-    sorted by match_score descending.
-
-    Scoring weights:
-      - skill_score      40 %
-      - experience_score 25 %
-      - domain_score     20 %
-      - education_score  15 %
+    Score each job against candidate profile with distinctive, granular evaluation:
+      1. Role & Title Match  (0 ~ 35 pts)
+      2. Location Alignment  (0 ~ 25 pts)
+      3. Skills Overlap      (0 ~ 20 pts)
+      4. Experience & Edu    (0 ~ 10 pts)
+      5. Platform Trust      (0 ~ 10 pts)
+    Also generates a clear human-readable match_reason explaining the score.
     """
     candidate_skills = _normalise_skill_set(profile.get("skills", []))
+    candidate_languages = [lang.lower() for lang in profile.get("languages", [])]
+    candidate_domains = [d.lower() for d in profile.get("domains", [])]
     candidate_level = profile.get("level", "mid")
     candidate_years = float(profile.get("total_years_experience") or 0)
-    candidate_domains = [d.lower() for d in profile.get("domains", [])]
     candidate_education = _highest_education(profile.get("education", []))
+    custom_prompt = (profile.get("custom_prompt") or "").lower()
+
+    # Determine desired location preference
+    target_loc = ""
+    if any(w in custom_prompt for w in ("전주", "전북", "jeonju")):
+        target_loc = "jeonju"
+    elif any(w in custom_prompt for w in ("서울", "seoul")):
+        target_loc = "seoul"
+    elif any(w in custom_prompt for w in ("원격", "remote", "재택")):
+        target_loc = "remote"
+
+    is_spanish_user = any("spanish" in s.lower() or "스페인어" in s.lower() for s in candidate_skills) or "spanish" in candidate_languages
+    is_english_user = any("english" in s.lower() or "영어" in s.lower() for s in candidate_skills) or "english" in candidate_languages
+    is_ai_user = any("ai" in s.lower() or "llm" in s.lower() or "evaluat" in s.lower() for s in candidate_skills)
 
     enriched: list[dict[str, Any]] = []
 
     for job in jobs:
         description = job.get("description_snippet", "") + " " + job.get("description", "")
         title = job.get("title", "")
+        job_loc = (job.get("location") or "").lower()
+        full_text = (title + " " + description).lower()
+        title_lower = title.lower()
 
-        # Infer job level from title keywords
-        job_level = _infer_job_level(title + " " + description)
-        job_domains = _extract_domains(title + " " + description)
+        reasons_pos: list[str] = []
+        reasons_neg: list[str] = []
+
+        # ── 1. Role & Title Relevance Score (0 ~ 35 pts) ──────────────────────
+        role_pts = 4.0
+
+        if is_spanish_user and any(w in title_lower for w in ("스페인어", "spanish", "에스파뇰")):
+            role_pts += 18.0
+            reasons_pos.append("스페인어 직무")
+        if any(w in title_lower for w in ("통역", "번역", "interpreter", "translation")):
+            role_pts += 14.0
+            reasons_pos.append("통번역 직무")
+        if is_english_user and any(w in title_lower for w in ("영어", "english", "강사", "teacher")):
+            role_pts += 12.0
+            reasons_pos.append("어학 교육/강사")
+        if any(w in title_lower for w in ("마케팅", "marketing", "콘텐츠", "content", "canva", "소셜미디어")):
+            role_pts += 13.0
+            reasons_pos.append("마케팅/콘텐츠")
+        if is_ai_user and any(w in title_lower for w in ("ai", "llm", "데이터", "평가", "라벨링", "evaluator", "annotation", "qa")):
+            role_pts += 20.0
+            reasons_pos.append("AI 데이터 평가")
+
+        # Fallback skill match in title
+        for skill in candidate_skills:
+            if len(skill) > 2 and skill.lower() in title_lower and skill.lower() not in ("korean", "english", "spanish"):
+                role_pts += 5.0
+                reasons_pos.append(f"{skill} 매칭")
+                break
+
+        role_pts = min(35.0, role_pts)
+        if role_pts <= 6.0:
+            reasons_neg.append("이력서 직무와의 직접 연관성 낮음")
+
+        # ── 2. Location Alignment Score (0 ~ 25 pts) ──────────────────────────
+        loc_pts = 10.0
+        if target_loc == "jeonju":
+            if any(w in job_loc for w in ("전주", "전북", "jeonju")):
+                loc_pts = 25.0
+                reasons_pos.append("전주/전북 근무지 일치")
+            elif any(w in job_loc for w in ("재택", "원격", "remote", "wfh")):
+                loc_pts = 20.0
+                reasons_pos.append("재택/원격 가능")
+            elif any(w in job_loc for w in ("서울", "경기", "수도권")):
+                loc_pts = 12.0
+                reasons_neg.append("근무지 서울")
+            elif any(w in job_loc for w in ("멕시코", "베트남", "해외", "북·중미")):
+                loc_pts = 4.0
+                reasons_neg.append("해외 근무(감점)")
+            else:
+                loc_pts = 8.0
+                reasons_neg.append("타지역")
+        elif target_loc == "seoul":
+            if any(w in job_loc for w in ("서울", "경기", "수도권", "강남", "판교")):
+                loc_pts = 25.0
+                reasons_pos.append("서울/수도권 일치")
+            elif any(w in job_loc for w in ("재택", "원격", "remote")):
+                loc_pts = 20.0
+            else:
+                loc_pts = 8.0
+                reasons_neg.append("지방 근무")
+        elif target_loc == "remote":
+            if any(w in job_loc for w in ("재택", "원격", "remote", "worldwide", "wfh")):
+                loc_pts = 25.0
+                reasons_pos.append("100% 원격근무")
+            else:
+                loc_pts = 7.0
+                reasons_neg.append("현장 출퇴근 필요")
+        else:
+            if any(w in job_loc for w in ("재택", "원격", "remote")):
+                loc_pts = 22.0
+            elif any(w in job_loc for w in ("멕시코", "해외", "베트남")):
+                loc_pts = 6.0
+                reasons_neg.append("해외 근무")
+            else:
+                loc_pts = 20.0
+
+        # ── 3. Skills Overlap Score (0 ~ 20 pts) ──────────────────────────────
         required_skills = extract_required_skills_from_job(description + " " + title)
         required_skills_lower = {s.lower() for s in required_skills}
+        matched = [s for s in candidate_skills if s.lower() in required_skills_lower or s.lower() in full_text]
+        missing = [s for s in required_skills if s.lower() not in {c.lower() for c in candidate_skills}]
 
-        # ── Skill score ──────────────────────────────────────────────────
-        matched = [s for s in candidate_skills if s.lower() in required_skills_lower]
-        missing = [
-            s for s in required_skills
-            if s.lower() not in {c.lower() for c in candidate_skills}
-        ]
-        if required_skills:
-            skill_pct = len(matched) / len(required_skills)
+        if len(matched) >= 3:
+            skill_score = 20.0
+        elif len(matched) == 2:
+            skill_score = 15.0
+        elif len(matched) == 1:
+            skill_score = 10.0
         else:
-            # If no skills listed in JD, assume partial match
-            skill_pct = 0.5
-        skill_score = round(skill_pct * 40, 2)
+            skill_score = 4.0
 
-        # ── Experience score ─────────────────────────────────────────────
-        exp_score = _experience_score(candidate_level, candidate_years, job_level)
+        # ── 4. Experience & Education Score (0 ~ 10 pts) ──────────────────────
+        job_level = _infer_job_level(title + " " + description)
+        exp_score = min(6.0, _experience_score(candidate_level, candidate_years, job_level) * 0.24)
+        edu_score = min(4.0, _education_score(candidate_education) * 0.26)
+        exp_edu_total = round(exp_score + edu_score, 1)
 
-        # ── Domain score ─────────────────────────────────────────────────
-        domain_score = _domain_score(candidate_domains, job_domains)
+        # ── 5. Platform Trust & Payout (0 ~ 10 pts) ───────────────────────────
+        trust_info = get_platform_trust_info(job.get("company", ""), job.get("platform", ""), job.get("url", ""))
+        trust_score = 10.0 if trust_info.get("rating") == "HIGH" else 6.0
 
-        # ── Education score ──────────────────────────────────────────────
-        edu_score = _education_score(candidate_education)
+        # Total score calculation
+        total_score = round(role_pts + loc_pts + skill_score + exp_edu_total + trust_score, 1)
+        total_score = max(15.0, min(96.0, total_score))
+
+        # Clear, distinctive natural language match reason
+        match_reason_parts: list[str] = []
+        if reasons_pos:
+            match_reason_parts.append(", ".join(reasons_pos[:2]) + " 일치")
+        if reasons_neg:
+            match_reason_parts.append("; ".join(reasons_neg[:2]))
+
+        if not match_reason_parts:
+            match_reason = f"전반적 역량 종합 적합도 {int(total_score)}%"
+        else:
+            match_reason = " · ".join(match_reason_parts)
 
         salary_type, salary_amount = _extract_salary_info(title + " " + description)
         contract_type = _extract_contract_type(title + " " + description)
-        trust_info = get_platform_trust_info(job.get("company", ""), job.get("platform", ""), job.get("url", ""))
-
-        # ── Custom prompt bonus score ─────────────────────────────────────
-        custom_prompt = profile.get("custom_prompt", "")
-        custom_bonus = _custom_prompt_score(custom_prompt, title, description, trust_info)
-
-        total_score = round(skill_score + exp_score + domain_score + edu_score + custom_bonus, 1)
-        total_score = max(0.0, min(100.0, total_score))
 
         enriched.append(
             {
                 **job,
                 "match_score": total_score,
-                "matched_skills": matched,
-                "missing_skills": missing[:10],  # cap for readability
+                "matched_skills": matched[:5],
+                "missing_skills": missing[:5],
                 "job_level_inferred": job_level,
                 "contract_type": job.get("contract_type") or contract_type,
                 "salary_type": job.get("salary_type") or salary_type,
@@ -243,11 +341,12 @@ def match_jobs_to_profile(
                 "payment_methods": trust_info.get("payment_methods", ["통장 입금", "PayPal"]),
                 "payment_cycle": trust_info.get("payment_cycle", "월급 / 주급"),
                 "trust_summary": trust_info.get("summary", ""),
+                "match_reason": match_reason,
                 "score_breakdown": {
-                    "skill_score": skill_score,
-                    "experience_score": exp_score,
-                    "domain_score": domain_score,
-                    "education_score": edu_score,
+                    "skill_score": round(skill_score, 1),
+                    "experience_score": round(exp_edu_total, 1),
+                    "domain_score": round(role_pts, 1),
+                    "education_score": round(loc_pts, 1),
                 },
             }
         )

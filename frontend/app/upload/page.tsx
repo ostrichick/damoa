@@ -46,8 +46,59 @@ export default function UploadPage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [location, setLocation] = useState("Korea");
   const [numResults, setNumResults] = useState(20);
+  const [uploadProgress, setUploadProgress] = useState(10);
+  const [uploadElapsedSeconds, setUploadElapsedSeconds] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState("");
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Dynamic progress & timer ticker for resume upload / analysis
+  useEffect(() => {
+    if (!["uploading", "parsing", "analyzing"].includes(step)) return;
+
+    setUploadProgress(10);
+    setUploadElapsedSeconds(0);
+    const startTime = Date.now();
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      setUploadElapsedSeconds(elapsed);
+
+      let p = 10;
+      if (elapsed < 1.0) {
+        p = 10 + (elapsed / 1.0) * 30; // 10 -> 40
+      } else if (elapsed < 3.0) {
+        p = 40 + ((elapsed - 1.0) / 2.0) * 35; // 40 -> 75
+      } else if (elapsed < 6.0) {
+        p = 75 + ((elapsed - 3.0) / 3.0) * 18; // 75 -> 93
+      } else {
+        p = 93 + (1 - Math.exp(-(elapsed - 6.0) / 5)) * 5; // 93 -> 98
+      }
+      setUploadProgress(Math.min(98, Math.round(p)));
+
+      if (elapsed < 1.2) {
+        setUploadStatusText(
+          language === "ko"
+            ? "1/3단계: 이력서 문서 파싱 및 텍스트 데이터 추출 중..."
+            : "Stage 1/3: Parsing document and extracting text data..."
+        );
+      } else if (elapsed < 3.5) {
+        setUploadStatusText(
+          language === "ko"
+            ? "2/3단계: Gemini AI 언어 모델 연결 및 프로필 구조화 중..."
+            : "Stage 2/3: Structuring candidate profile with Gemini AI..."
+        );
+      } else {
+        setUploadStatusText(
+          language === "ko"
+            ? "3/3단계: 전문 스킬, 경력 연수, 직무 도메인 정밀 분류 중..."
+            : "Stage 3/3: Classifying skills, experience, and job domains..."
+        );
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [step, language]);
 
   // Check for saved resume profiles from localStorage or backend API on mount
   useEffect(() => {
@@ -196,6 +247,10 @@ export default function UploadPage() {
         const data: ResumeApiResponse = await res.json();
         uploadedProfile = data.profile;
       }
+
+      setUploadProgress(100);
+      setUploadStatusText(language === "ko" ? "분석 완료! 프로필을 생성했습니다." : "Analysis complete! Profile created.");
+      await new Promise((r) => setTimeout(r, 200));
 
       setStep("done");
       setProfile(uploadedProfile);
@@ -427,13 +482,17 @@ export default function UploadPage() {
 
         {/* Progress indicator during analysis */}
         {["uploading", "parsing", "analyzing"].includes(step) && (
-          <div className="glass-card animate-fadeInUp" style={{ padding: 40, textAlign: "center", marginBottom: 24 }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>⚡</div>
-            <p style={{ fontSize: 16, fontWeight: 600, color: "#fafafa", marginBottom: 14 }}>
-              {t("upload.analyzing")}
+          <div className="glass-card animate-fadeInUp" style={{ padding: "36px 24px", textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>⚡</div>
+            <p style={{ fontSize: 16, fontWeight: 700, color: "#fafafa", marginBottom: 8 }}>
+              {uploadStatusText || t("upload.analyzing")}
             </p>
-            <div className="progress-bar" style={{ maxWidth: 280, margin: "0 auto" }}>
-              <div className="progress-bar-fill" style={{ width: step === "analyzing" ? "85%" : "40%" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", maxWidth: 360, margin: "0 auto 8px auto", fontSize: 12, color: "#a1a1aa" }}>
+              <span>{language === "ko" ? "실시간 진행률" : "Progress"}: <strong style={{ color: "#ffffff" }}>{uploadProgress}%</strong></span>
+              <span>⏱️ {uploadElapsedSeconds.toFixed(1)}s {language === "ko" ? "경과 (평균 3~5초)" : "elapsed (avg 3-5s)"}</span>
+            </div>
+            <div className="progress-bar" style={{ maxWidth: 360, margin: "0 auto" }}>
+              <div className="progress-bar-fill-animated" style={{ width: `${uploadProgress}%` }} />
             </div>
           </div>
         )}

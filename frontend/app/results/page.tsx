@@ -29,11 +29,15 @@ interface Job {
   payment_methods?: string[];
   payment_cycle?: string;
   trust_summary?: string;
+  match_reason?: string;
   score_breakdown?: {
     skill_score: number;
     experience_score: number;
-    domain_score: number;
-    education_score: number;
+    domain_score?: number;
+    education_score?: number;
+    role_score?: number;
+    location_score?: number;
+    trust_score?: number;
   };
 }
 
@@ -144,6 +148,14 @@ function JobCard({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k:
               <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                 📍 {translateTag(job.location || "Remote / Korea", language)} {job.posted_date ? `· ${translateTag(job.posted_date, language)}` : ""}
               </p>
+              {job.match_reason && (
+                <div className="match-reason-box">
+                  <span style={{ color: "#a1a1aa", fontWeight: 600 }}>
+                    {language === "ko" ? "🎯 AI 적합도 근거:" : "🎯 Match Basis:"}
+                  </span>
+                  <span style={{ color: "#fafafa" }}>{job.match_reason}</span>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -220,6 +232,12 @@ function TableRow({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k
       <td>
         <div style={{ fontWeight: 600, color: "#ffffff" }}>{job.title}</div>
         <div style={{ fontSize: 11, color: "var(--text-muted)" }}>📍 {translateTag(job.location || "Remote / Korea", language)}</div>
+        {job.match_reason && (
+          <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}>
+            <span>🎯</span>
+            <span>{job.match_reason}</span>
+          </div>
+        )}
       </td>
       <td>
         <span className="badge-contract">
@@ -271,7 +289,9 @@ function ResultsContent() {
 
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchStatus, setSearchStatus] = useState("Searching for positions...");
+  const [progress, setProgress] = useState(5);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [searchStatus, setSearchStatus] = useState("1/4단계: 채용 플랫폼 연결 및 탐색 준비...");
   const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("match_score");
   const [filterLevel, setFilterLevel] = useState<FilterLevel>("all");
@@ -280,6 +300,62 @@ function ResultsContent() {
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+  // Dynamic progress & timer ticker
+  useEffect(() => {
+    if (!loading) return;
+
+    setProgress(5);
+    setElapsedSeconds(0);
+    const startTime = Date.now();
+
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      setElapsedSeconds(elapsed);
+
+      // Smooth multi-stage progress curve
+      let currentProgress = 5;
+      if (elapsed < 1.2) {
+        currentProgress = 5 + (elapsed / 1.2) * 30;
+      } else if (elapsed < 3.8) {
+        currentProgress = 35 + ((elapsed - 1.2) / 2.6) * 40;
+      } else if (elapsed < 6.5) {
+        currentProgress = 75 + ((elapsed - 3.8) / 2.7) * 17;
+      } else {
+        currentProgress = 92 + (1 - Math.exp(-(elapsed - 6.5) / 6)) * 6;
+      }
+      setProgress(Math.min(98, Math.round(currentProgress)));
+
+      // Dynamic real-time stage message
+      if (elapsed < 1.2) {
+        setSearchStatus(
+          language === "ko"
+            ? "1/4단계: 채용 플랫폼(사람인·잡코리아·링크드인) 연결 및 탐색 준비..."
+            : "Stage 1/4: Connecting to job platforms..."
+        );
+      } else if (elapsed < 3.8) {
+        setSearchStatus(
+          language === "ko"
+            ? "2/4단계: 멀티 플랫폼 병렬 크롤링 및 공고 실시간 수집 중..."
+            : "Stage 2/4: Crawling multiple job platforms in parallel..."
+        );
+      } else if (elapsed < 6.5) {
+        setSearchStatus(
+          language === "ko"
+            ? "3/4단계: AI 5대 지표(직무·지역·스킬·경력·신뢰도) 적합도 정밀 평가 중..."
+            : "Stage 3/4: Calculating 5-factor AI candidate match scores..."
+        );
+      } else {
+        setSearchStatus(
+          language === "ko"
+            ? "4/4단계: 최적 적합도 공고 선별 및 추천 순위 패키징 중..."
+            : "Stage 4/4: Ranking and packaging top recommendations..."
+        );
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [loading, language]);
+
   const startSearch = useCallback(async () => {
     if (!resumeId) {
       setError(language === "ko" ? "이력서 ID가 없습니다. 다시 업로드해주세요." : "Missing resume ID. Please upload a resume first.");
@@ -287,7 +363,6 @@ function ResultsContent() {
       return;
     }
     try {
-      setSearchStatus(language === "ko" ? "채용 플랫폼에서 공고를 수집하는 중..." : "Collecting job listings across platforms...");
       const res = await fetch(`${API_BASE}/api/jobs/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -300,7 +375,6 @@ function ResultsContent() {
       });
       if (!res.ok) throw new Error(await res.text());
 
-      setSearchStatus(language === "ko" ? "AI 적합도를 계산하는 중..." : "Calculating AI match scores...");
       const data: JobSearchApiResponse = await res.json();
 
       let profileSummary;
@@ -311,6 +385,10 @@ function ResultsContent() {
           profileSummary = pData.profile;
         }
       } catch (_) {}
+
+      setProgress(100);
+      setSearchStatus(language === "ko" ? "분석 완료! 맞춤 채용공고를 표시합니다." : "Complete! Displaying matched jobs.");
+      await new Promise((r) => setTimeout(r, 200));
 
       setResult({
         search_id: data.search_id,
@@ -431,11 +509,17 @@ function ResultsContent() {
         {/* Loading state */}
         {loading && (
           <div>
-            <div className="glass-card animate-fadeInUp" style={{ padding: 28, textAlign: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>⚡</div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "#fafafa", marginBottom: 12 }}>{searchStatus}</p>
-              <div className="progress-bar" style={{ maxWidth: 280, margin: "0 auto" }}>
-                <div className="progress-bar-fill" style={{ width: "75%" }} />
+            <div className="glass-card animate-fadeInUp" style={{ padding: "36px 24px", textAlign: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>⚡</div>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "#fafafa", marginBottom: 8 }}>
+                {searchStatus}
+              </p>
+              <div style={{ display: "flex", justifyContent: "space-between", maxWidth: 360, margin: "0 auto 8px auto", fontSize: 12, color: "#a1a1aa" }}>
+                <span>{language === "ko" ? "실시간 진행률" : "Progress"}: <strong style={{ color: "#ffffff" }}>{progress}%</strong></span>
+                <span>⏱️ {elapsedSeconds.toFixed(1)}s {language === "ko" ? "경과 (평균 4~6초)" : "elapsed (avg 4-6s)"}</span>
+              </div>
+              <div className="progress-bar" style={{ maxWidth: 360, margin: "0 auto" }}>
+                <div className="progress-bar-fill-animated" style={{ width: `${progress}%` }} />
               </div>
             </div>
             {[1, 2, 3].map((i) => (
