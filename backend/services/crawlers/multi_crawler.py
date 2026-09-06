@@ -30,12 +30,19 @@ async def crawl_multi_platform_jobs(
 
     logger.info("Starting multi-platform crawl for query='%s', location='%s'...", query, location)
 
-    # Launch all 4 crawlers concurrently
+    async def _safe_crawl(coro, platform_name: str) -> list[dict[str, Any]]:
+        try:
+            return await asyncio.wait_for(coro, timeout=3.5)
+        except Exception as exc:
+            logger.info("Crawler %s timed out or skipped: %s", platform_name, exc)
+            return []
+
+    # Launch all 4 crawlers concurrently with strict individual 3.5s timeouts
     results = await asyncio.gather(
-        crawl_linkedin_jobs(query, location, num_jobs=per_platform),
-        crawl_wanted_jobs(query, location, num_jobs=per_platform),
-        crawl_saramin_jobs(query, location, num_jobs=per_platform),
-        crawl_remoteok_jobs(query, location, num_jobs=per_platform),
+        _safe_crawl(crawl_wanted_jobs(query, location, num_jobs=per_platform), "Wanted"),
+        _safe_crawl(crawl_saramin_jobs(query, location, num_jobs=per_platform), "Saramin"),
+        _safe_crawl(crawl_remoteok_jobs(query, location, num_jobs=per_platform), "RemoteOK"),
+        _safe_crawl(crawl_linkedin_jobs(query, location, num_jobs=per_platform), "LinkedIn"),
         return_exceptions=True,
     )
 

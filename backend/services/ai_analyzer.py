@@ -5,6 +5,7 @@ Uses Google Gemini 2.0 Flash to extract structured profile data from resume text
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -39,10 +40,13 @@ def _get_client() -> genai.Client | None:
         logger.error("Failed to initialize genai.Client: %s", exc)
         return None
 
-# Fallback chain: try active models in order until one works
+# Fallback chain: try ultra-fast lightweight active models first
 _MODEL_CANDIDATES = [
-    "gemini-3.6-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash-lite",
+    "gemini-3.7-flash",
     "gemini-3.5-flash",
+    "gemini-flash-latest",
 ]
 
 # ---------------------------------------------------------------------------
@@ -114,16 +118,20 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
     for model_name in _MODEL_CANDIDATES:
         try:
             logger.info("Trying Gemini model: %s", model_name)
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=_SYSTEM_PROMPT,
-                    temperature=0.1,
-                    max_output_tokens=4096,
-                    response_mime_type="application/json",
-                ),
-            )
+            def _call_gemini():
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=_SYSTEM_PROMPT,
+                        temperature=0.1,
+                        max_output_tokens=4096,
+                        response_mime_type="application/json",
+                    ),
+                )
+
+            # Strict 8.0s timeout to prevent server hanging
+            response = await asyncio.wait_for(asyncio.to_thread(_call_gemini), timeout=8.0)
             raw_text: str = response.text.strip()
             raw_text = _strip_markdown_fences(raw_text)
             profile: dict[str, Any] = json.loads(raw_text)
@@ -135,6 +143,10 @@ async def analyze_resume(resume_text: str) -> dict[str, Any]:
             logger.error("Model %s returned invalid JSON: %s", model_name, exc)
             last_error = exc
             break  # JSON error means model responded but output was bad — don't retry others
+        except asyncio.TimeoutError:
+            logger.warning("Model %s timed out after 8s, trying next...", model_name)
+            last_error = TimeoutError(f"Model {model_name} timed out")
+            continue
         except Exception as exc:
             logger.warning("Model %s failed (%s), trying next...", model_name, exc)
             last_error = exc

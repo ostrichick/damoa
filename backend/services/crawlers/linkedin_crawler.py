@@ -1,15 +1,18 @@
 """
-LinkedIn Jobs Crawler (Playwright)
-Scrapes public LinkedIn job listings without authentication.
+LinkedIn Jobs Crawler (Fast HTTP / Guest Endpoint)
+Scrapes public LinkedIn job listings without authentication or heavy headless browser overhead.
+Strict 3.0s timeout to guarantee instant responses without hanging.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import random
 import urllib.parse
 from typing import Any
+
+import httpx
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -41,179 +44,68 @@ _USER_AGENTS = [
 async def crawl_linkedin_jobs(
     query: str,
     location: str = "",
-    num_jobs: int = 20,
+    num_jobs: int = 15,
 ) -> list[dict[str, Any]]:
     """
-    Crawl LinkedIn public job listings for *query* (and optional *location*).
-
-    Returns a list of job dicts:
-    {
-        "title": str,
-        "company": str,
-        "location": str,
-        "url": str,
-        "description_snippet": str,
-        "posted_date": str,
-        "platform": "linkedin",
-    }
-
-    Falls back to an empty list on any unrecoverable error so the rest of
-    the pipeline keeps working.
+    Fast HTTP-based public job listing fetcher for LinkedIn.
+    Never blocks or hangs; strict 3.0s timeout with immediate fallback.
     """
-    try:
-        from playwright.async_api import async_playwright, TimeoutError as PWTimeout
-    except ImportError:
-        logger.error("playwright is not installed. Run: pip install playwright && playwright install chromium")
-        return []
-
     encoded_query = urllib.parse.quote_plus(query)
-    encoded_location = urllib.parse.quote_plus(location) if location else ""
+    encoded_location = urllib.parse.quote_plus(location) if location else "Korea"
 
-    base_url = "https://www.linkedin.com/jobs/search/"
-    params = f"?keywords={encoded_query}"
-    if encoded_location:
-        params += f"&location={encoded_location}"
-    params += "&f_TPR=r86400"  # last 24 hours filter
-    url = base_url + params
-
-    jobs: list[dict[str, Any]] = []
-
-    for attempt in range(1, 4):  # up to 3 retries
-        try:
-            jobs = await _do_crawl(url, num_jobs)
-            if jobs:
-                break
-            logger.warning("LinkedIn crawl attempt %d returned 0 jobs, retrying…", attempt)
-            await asyncio.sleep(random.uniform(2, 5))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("LinkedIn crawl attempt %d failed: %s", attempt, exc)
-            await asyncio.sleep(random.uniform(3, 7))
-
-    return jobs
-
-
-async def _do_crawl(url: str, num_jobs: int) -> list[dict[str, Any]]:
-    """Inner coroutine that actually runs Playwright."""
-    from playwright.async_api import async_playwright
-
-    user_agent = random.choice(_USER_AGENTS)
-
-    async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-blink-features=AutomationControlled",
-            ],
-        )
-        context = await browser.new_context(
-            user_agent=user_agent,
-            viewport={"width": 1280, "height": 800},
-            locale="en-US",
-            timezone_id="America/New_York",
-            java_script_enabled=True,
-        )
-        # Hide webdriver flag
-        await context.add_init_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
-
-        page = await context.new_page()
-
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-
-            # Random human-like delay
-            await asyncio.sleep(random.uniform(1.5, 3.5))
-
-            # LinkedIn may show a sign-in gate – try to dismiss it
-            try:
-                dismiss_btn = page.locator("[data-tracking-control-name='public_jobs_sign-in-gate_close']")
-                if await dismiss_btn.is_visible(timeout=3000):
-                    await dismiss_btn.click()
-                    await asyncio.sleep(0.5)
-            except Exception:
-                pass
-
-            # Wait for job cards to appear
-            await page.wait_for_selector(
-                "ul.jobs-search__results-list li, .base-search-card",
-                timeout=15_000,
-            )
-
-            jobs = await _extract_job_cards(page, num_jobs)
-        finally:
-            await browser.close()
-
-    return jobs
-
-
-async def _extract_job_cards(page: Any, num_jobs: int) -> list[dict[str, Any]]:
-    """Parse job cards from the current LinkedIn jobs search page."""
-    from playwright.async_api import TimeoutError as PWTimeout
-
-    jobs: list[dict[str, Any]] = []
-
-    # Scroll down to trigger lazy loading
-    for _ in range(min(num_jobs // 5, 6)):
-        await page.evaluate("window.scrollBy(0, 600)")
-        await asyncio.sleep(random.uniform(0.4, 0.9))
-
-    # Try to grab all job cards
-    cards = await page.query_selector_all(
-        "ul.jobs-search__results-list li.result-card, "
-        "li.jobs-search__result-item, "
-        ".base-search-card"
+    # LinkedIn public guest search endpoint
+    url = (
+        f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+        f"?keywords={encoded_query}&location={encoded_location}&f_TPR=r604800&start=0"
     )
 
-    if not cards:
-        # Fallback selector set
-        cards = await page.query_selector_all(".job-search-card")
+    headers = {
+        "User-Agent": random.choice(_USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,ko;q=0.8",
+    }
 
-    for card in cards[:num_jobs]:
-        try:
-            title = await _safe_inner_text(card, "h3.base-search-card__title, h3.result-card__title")
-            company = await _safe_inner_text(card, "h4.base-search-card__subtitle, h4.result-card__subtitle")
-            location = await _safe_inner_text(card, ".job-search-card__location, .result-card__location")
-            posted_date = await _safe_inner_text(card, "time, .job-search-card__listdate")
-            snippet = await _safe_inner_text(card, ".base-search-card__metadata, .result-card__snippet")
-
-            # Extract URL
-            link_el = await card.query_selector("a.base-card__full-link, a.result-card__full-card-link")
-            href = ""
-            if link_el:
-                href = await link_el.get_attribute("href") or ""
-                # Strip tracking parameters after the job ID
-                href = href.split("?")[0] if "?" in href else href
-
-            if not title:
-                continue
-
-            jobs.append(
-                {
-                    "title": title.strip(),
-                    "company": company.strip(),
-                    "location": location.strip(),
-                    "url": href.strip(),
-                    "description_snippet": snippet.strip(),
-                    "posted_date": posted_date.strip(),
-                    "platform": "linkedin",
-                }
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Failed to parse a job card: %s", exc)
-            continue
-
-    return jobs
-
-
-async def _safe_inner_text(element: Any, selector: str) -> str:
-    """Return inner text of the first matching child element, or empty string."""
     try:
-        el = await element.query_selector(selector)
-        if el:
-            return await el.inner_text()
-    except Exception:
-        pass
-    return ""
+        async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+            r = await client.get(url, headers=headers)
+            if r.status_code != 200:
+                logger.info("LinkedIn HTTP returned status %d", r.status_code)
+                return []
+
+            soup = BeautifulSoup(r.text, "html.parser")
+            cards = soup.select("li")
+            jobs: list[dict[str, Any]] = []
+
+            for card in cards[:num_jobs]:
+                title_el = card.select_one(".base-search-card__title, h3")
+                comp_el = card.select_one(".base-search-card__subtitle, h4")
+                loc_el = card.select_one(".job-search-card__location")
+                link_el = card.select_one("a.base-card__full-link, a")
+                time_el = card.select_one("time")
+
+                if not title_el or not comp_el:
+                    continue
+
+                title = title_el.text.strip()
+                company = comp_el.text.strip()
+                loc = loc_el.text.strip() if loc_el else location or "Korea"
+                raw_href = link_el.get("href", "") if link_el else "https://www.linkedin.com"
+                clean_url = raw_href.split("?")[0] if "?" in raw_href else raw_href
+                posted = time_el.text.strip() if time_el else "최근"
+
+                jobs.append({
+                    "title": title,
+                    "company": company,
+                    "location": loc,
+                    "url": clean_url,
+                    "description_snippet": f"{company} 채용 공고 (LinkedIn) · {title}",
+                    "posted_date": posted,
+                    "platform": "linkedin",
+                })
+
+            logger.info("LinkedIn fast fetch extracted %d jobs", len(jobs))
+            return jobs
+
+    except Exception as exc:
+        logger.info("LinkedIn fast fetch skipped: %s", exc)
+        return []
