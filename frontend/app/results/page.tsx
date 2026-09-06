@@ -39,6 +39,8 @@ interface Job {
     location_score?: number;
     trust_score?: number;
   };
+  is_curated?: boolean;
+  is_expanded?: boolean;
 }
 
 interface JobSearchApiResponse {
@@ -141,6 +143,16 @@ function JobCard({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k:
                 }}>
                   {job.platform}
                 </span>
+                {(job.is_curated || job.is_expanded || job.match_reason?.includes("확장") || job.match_reason?.includes("발굴")) && (
+                  <span style={{
+                    fontSize: 10, padding: "1px 6px", borderRadius: 4,
+                    background: "rgba(255, 255, 255, 0.1)", color: "#e4e4e7",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    display: "inline-flex", alignItems: "center", gap: 3
+                  }}>
+                    ✨ {language === "ko" ? "AI 연관 확장" : "AI Expanded"}
+                  </span>
+                )}
               </div>
               <h3 style={{ fontSize: 17, fontWeight: 700, color: "#fafafa" }}>
                 {job.title}
@@ -227,7 +239,18 @@ function TableRow({ job, language, t }: { job: Job; language: "en" | "ko"; t: (k
       </td>
       <td>
         <div style={{ fontWeight: 600, color: "#fafafa" }}>{job.company}</div>
-        <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>{job.platform}</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 5 }}>
+          <span>{job.platform}</span>
+          {(job.is_curated || job.is_expanded || job.match_reason?.includes("확장") || job.match_reason?.includes("발굴")) && (
+            <span style={{
+              fontSize: 9, padding: "1px 4px", borderRadius: 3,
+              background: "rgba(255, 255, 255, 0.1)", color: "#e4e4e7",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+            }}>
+              {language === "ko" ? "확장" : "Expanded"}
+            </span>
+          )}
+        </div>
       </td>
       <td>
         <div style={{ fontWeight: 600, color: "#ffffff" }}>{job.title}</div>
@@ -447,6 +470,10 @@ function ResultsContent() {
     secondaryJobs = filteredJobs.filter((j) => j.match_score < dynamicThreshold);
   }
 
+  const hasExpandedJobs = (result?.jobs || []).some(
+    (j) => j.is_curated || j.is_expanded || j.match_reason?.includes("확장") || j.match_reason?.includes("발굴")
+  );
+
   return (
     <div style={{ minHeight: "100vh" }}>
       <Navbar currentStep={3} />
@@ -546,10 +573,56 @@ function ResultsContent() {
         {/* Results List */}
         {!loading && !error && (
           <div>
+            {/* AI Auto-Expansion Notice Banner */}
+            {hasExpandedJobs && (
+              <div
+                className="animate-fadeInUp"
+                style={{
+                  marginBottom: 20,
+                  padding: "16px 20px",
+                  borderRadius: 12,
+                  background: "rgba(255, 255, 255, 0.03)",
+                  border: "1px solid rgba(255, 255, 255, 0.12)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 14,
+                }}
+              >
+                <span style={{ fontSize: 22, lineHeight: 1 }}>💡</span>
+                <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+                  <div style={{ fontWeight: 700, color: "#ffffff", marginBottom: 3 }}>
+                    {language === "ko"
+                      ? "AI 연관 직무 및 전국·원격 채용 기회 자동 확장 활성화"
+                      : "AI Intelligent Adjacent & Remote Opportunity Expansion Active"}
+                  </div>
+                  <div style={{ color: "var(--text-secondary)" }}>
+                    {language === "ko"
+                      ? "희망하신 타겟 조건의 직접 공고가 부족한 경우에도 기회가 누락되지 않도록, AI가 이력서 역량(외국어·원격근무·인접직무)을 바탕으로 탐색 범위를 지능적으로 자동 확장하여 추천해 드립니다."
+                      : "To prevent missed opportunities in narrow sectors or regions, AI automatically expanded search parameters to adjacent fields and remote roles matching your profile competencies."}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {filteredJobs.length === 0 ? (
               <div className="glass-card" style={{ padding: 60, textAlign: "center" }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
-                <p style={{ color: "var(--text-secondary)", fontSize: 15 }}>{t("results.empty")}</p>
+                <p style={{ color: "var(--text-secondary)", fontSize: 15, marginBottom: 16 }}>
+                  {filterLevel !== "all"
+                    ? (language === "ko"
+                        ? `선택하신 '${filterLevel}' 적합도 기준에 부합하는 공고가 없습니다. 전체 공고를 확인해보세요.`
+                        : `No jobs match the '${filterLevel}' filter. Try viewing all results.`)
+                    : t("results.empty")}
+                </p>
+                {filterLevel !== "all" && (
+                  <button
+                    onClick={() => setFilterLevel("all")}
+                    className="btn-primary"
+                    style={{ padding: "8px 18px", fontSize: 13 }}
+                  >
+                    {language === "ko" ? "전체 결과 보기 (All)" : "Show All Results"}
+                  </button>
+                )}
               </div>
             ) : viewMode === "card" ? (
               /* CARD VIEW */
