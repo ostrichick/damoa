@@ -37,6 +37,7 @@ class JobSearchRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="Natural language custom working conditions & preferences")
     location: str = Field("", description="Target job location, e.g. 'Seoul, Korea' or 'Remote'")
     num_results: int = Field(20, ge=1, le=50, description="Number of job results to fetch (1-50)")
+    cached_profile: Optional[dict[str, Any]] = Field(None, description="Optional cached profile object from client for self-healing across server restarts")
 
     @field_validator("num_results")
     @classmethod
@@ -525,9 +526,35 @@ async def search_jobs(
     Use GET /api/jobs/status/{search_id} to poll, or
     GET /api/jobs/results/{search_id} to retrieve the final results.
     """
-    # Load profile
-    async for db in get_db():
-        profile = await _get_profile_from_db(db, body.resume_id)
+    # Load profile with restart self-healing fallback
+    profile = None
+    try:
+        async for db in get_db():
+            profile = await _get_profile_from_db(db, body.resume_id)
+    except HTTPException as exc:
+        if body.cached_profile and isinstance(body.cached_profile, dict):
+            logger.info("Resume ID %d missing from DB; restoring from cached_profile...", body.resume_id)
+            profile = dict(body.cached_profile)
+            async for db in get_db():
+                await db.execute(
+                    """
+                    INSERT INTO resumes (id, content_text, parsed_skills, parsed_experience, parsed_education, level, ai_profile)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET ai_profile = excluded.ai_profile
+                    """,
+                    (
+                        body.resume_id,
+                        profile.get("summary", ""),
+                        to_json(profile.get("skills", [])),
+                        to_json(profile.get("experience", [])),
+                        to_json(profile.get("education", [])),
+                        profile.get("level", "mid"),
+                        to_json(profile),
+                    ),
+                )
+                await db.commit()
+        else:
+            raise exc
 
     if body.custom_prompt:
         profile["custom_prompt"] = body.custom_prompt

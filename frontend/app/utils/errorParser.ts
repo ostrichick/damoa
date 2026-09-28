@@ -105,16 +105,35 @@ export function parsePipelineError(rawError: unknown, lang: "en" | "ko" = "en"):
     };
   }
 
+  // 2.5. Profile Load / Session Expired (Step 3-A)
+  if (
+    lower.includes("step 3-a") ||
+    lower.includes("profile load") ||
+    lower.includes("이력서 조회 오류") ||
+    lower.includes("데이터베이스에서 찾을 수 없습니다") ||
+    lower.includes("resume with id") ||
+    lower.includes("no resume profile found")
+  ) {
+    return {
+      stepCode: "STEP 1",
+      stepName: isKo ? "1단계: 이력서 프로필 세션 확인" : "Step 1: Resume Profile Session Check",
+      title: isKo ? "이력서 세션 만료 또는 데이터 미등록" : "Resume Profile Session Expired",
+      description: isKo
+        ? "클라우드 서버 재시작 또는 일정 시간 미사용으로 인해 해당 이력서 번호의 분석 데이터가 확인되지 않습니다."
+        : "The backend server restarted or your session expired. The resume record is not available in the database.",
+      suggestedAction: isKo
+        ? "이력서 업로드 페이지(/upload)로 돌아가 프로필 카드를 다시 선택하거나 이력서를 재업로드해 주세요."
+        : "Please return to the Upload page (/upload) and re-select your profile card or re-upload your resume.",
+      raw: rawMsg,
+    };
+  }
+
   // 3. Step 3: Job Crawling (Wanted, Saramin, RemoteOK, LinkedIn)
   if (
-    lower.includes("step 3") ||
-    lower.includes("3단계") ||
     lower.includes("crawler") ||
     lower.includes("crawl") ||
-    lower.includes("wanted") ||
-    lower.includes("saramin") ||
-    lower.includes("remoteok") ||
-    lower.includes("linkedin") ||
+    lower.includes("크롤") ||
+    lower.includes("multi_crawler") ||
     lower.includes("collecting job")
   ) {
     return {

@@ -13,6 +13,8 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
 backend/damoa.db
 backend/uploads/
 

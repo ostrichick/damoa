@@ -65,6 +65,10 @@ interface SearchResult {
 type SortBy = "match_score" | "company" | "platform";
 type FilterLevel = "all" | "80+" | "70+" | "60+";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function ScoreRing({ score }: { score: number }) {
   const radius = 30;
   const circumference = 2 * Math.PI * radius;
@@ -389,6 +393,31 @@ function ResultsContent() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
+    // Retrieve cached profile from localStorage for restart resilience
+    let cachedProfile: Record<string, unknown> | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        const listStr = localStorage.getItem("damoa_saved_profiles");
+        if (listStr) {
+          const list: unknown = JSON.parse(listStr);
+          if (Array.isArray(list)) {
+            cachedProfile = list.find(
+              (profile: unknown) => isRecord(profile) && String(profile.resume_id) === String(resumeId),
+            ) ?? null;
+          }
+        }
+        if (!cachedProfile) {
+          const singleStr = localStorage.getItem("damoa_saved_profile");
+          if (singleStr) {
+            const single: unknown = JSON.parse(singleStr);
+            if (isRecord(single) && String(single.resume_id) === String(resumeId)) {
+              cachedProfile = single;
+            }
+          }
+        }
+      } catch {}
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/jobs/search`, {
         method: "POST",
@@ -399,6 +428,7 @@ function ResultsContent() {
           location,
           num_results: numResults,
           custom_prompt: customPrompt,
+          cached_profile: cachedProfile,
         }),
       });
       clearTimeout(timeoutId);
@@ -413,7 +443,7 @@ function ResultsContent() {
           const pData = await pRes.json();
           profileSummary = pData.profile;
         }
-      } catch (_) {}
+      } catch {}
 
       setProgress(100);
       setSearchStatus(language === "ko" ? "분석 완료! 맞춤 채용공고를 표시합니다." : "Complete! Displaying matched jobs.");
@@ -474,6 +504,31 @@ function ResultsContent() {
     (j) => j.is_curated || j.is_expanded || j.match_reason?.includes("확장") || j.match_reason?.includes("발굴")
   );
 
+  const exportToCsv = () => {
+    if (filteredJobs.length === 0) return;
+    const headers = ["공고제목", "회사명", "근무지", "플랫폼", "매칭점수", "고용형태", "급여", "링크"];
+    const rows = filteredJobs.map((job) => [
+      `"${job.title.replace(/"/g, '""')}"`,
+      `"${job.company.replace(/"/g, '""')}"`,
+      `"${(job.location || "").replace(/"/g, '""')}"`,
+      `"${job.platform}"`,
+      job.match_score,
+      `"${(job.contract_type || "").replace(/"/g, '""')}"`,
+      `"${(job.salary_amount || "").replace(/"/g, '""')}"`,
+      `"${job.url}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `damoa_recommended_jobs_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div style={{ minHeight: "100vh" }}>
       <Navbar currentStep={3} />
@@ -482,7 +537,7 @@ function ResultsContent() {
         {/* Header bar */}
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
-          flexWrap: "wrap", gap: 16, marginBottom: 28
+          flexWrap: "wrap", gap: 16, marginBottom: 16
         }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -503,6 +558,26 @@ function ResultsContent() {
 
           {/* View switcher & Controls */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {/* CSV Export Button */}
+            <button
+              onClick={exportToCsv}
+              disabled={filteredJobs.length === 0}
+              className="btn-secondary"
+              style={{
+                padding: "6px 12px",
+                fontSize: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                borderColor: "rgba(16, 185, 129, 0.4)",
+                color: "#34d399",
+              }}
+              title="현재 공고 목록 CSV 엑셀 다운로드"
+            >
+              <span>📥</span>
+              <span>{language === "ko" ? "CSV 다운로드" : "Export CSV"}</span>
+            </button>
+
             <div className="view-toggle-container">
               <button
                 onClick={() => setViewMode("card")}
@@ -542,6 +617,37 @@ function ResultsContent() {
               <option value="company">Company</option>
               <option value="platform">Platform</option>
             </select>
+          </div>
+        </div>
+
+        {/* 👨‍👩‍👧 가족 맞춤 원클릭 프로필 스위처 배너 */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: 10, padding: "10px 16px", marginBottom: 24,
+          background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: 12, fontSize: 12
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#a1a1aa" }}>
+            <span style={{ fontSize: 14 }}>🎯</span>
+            <span style={{ fontWeight: 600 }}>{language === "ko" ? "맞춤 타깃 전환:" : "Persona Switch:"}</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/results?q=Remote+AI+Trainer+Data+LLM"
+              className="btn-secondary"
+              style={{ padding: "5px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5, borderColor: "rgba(56, 189, 248, 0.4)", color: "#7dd3fc" }}
+            >
+              <span>👨‍💻</span>
+              <span>{language === "ko" ? "남편 모드: 글로벌 원격 AI/LLM QA" : "Husband: Remote AI/LLM QA"}</span>
+            </Link>
+            <Link
+              href="/results?q=Jeonju+English+Spanish+Instructor+Marketing"
+              className="btn-secondary"
+              style={{ padding: "5px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 5, borderColor: "rgba(244, 114, 182, 0.4)", color: "#f472b6" }}
+            >
+              <span>👩‍🏫</span>
+              <span>{language === "ko" ? "아내 모드: 전주·전북 강사/글로벌 마케팅" : "Wife: Jeonju Onsite Instructor/Marketing"}</span>
+            </Link>
           </div>
         </div>
 

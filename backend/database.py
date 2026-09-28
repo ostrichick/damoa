@@ -91,19 +91,22 @@ CREATE TABLE IF NOT EXISTS job_recommendations (
 # ---------------------------------------------------------------------------
 async def init_db() -> None:
     """Create all tables if they don't exist yet."""
-    async with aiosqlite.connect(_DB_PATH) as db:
+    async with aiosqlite.connect(_DB_PATH, timeout=30.0) as db:
         await db.execute("PRAGMA journal_mode=WAL;")
         await db.execute("PRAGMA foreign_keys=ON;")
         await db.execute(_CREATE_USERS)
         await db.execute(_CREATE_RESUMES)
         await db.execute(_CREATE_JOB_SEARCHES)
         await db.execute(_CREATE_JOB_RECOMMENDATIONS)
+
+        # Historical personal seed data removed during privacy rewrite.
+
         await db.commit()
 
 
 async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
     """Async context manager – yields an open DB connection."""
-    async with aiosqlite.connect(_DB_PATH) as db:
+    async with aiosqlite.connect(_DB_PATH, timeout=30.0) as db:
         db.row_factory = aiosqlite.Row
         await db.execute("PRAGMA foreign_keys=ON;")
         yield db
