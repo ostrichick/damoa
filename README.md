@@ -9,7 +9,7 @@
 
 ### 사전 요구사항
 - Node.js 18+
-- Python 3.11+
+- Python 3.12
 - pip
 
 ### 1. 백엔드 실행
@@ -18,7 +18,7 @@
 cd backend
 
 # 가상환경 생성
-python -m venv venv
+py -3.12 -m venv venv
 venv\Scripts\activate   # Windows
 # source venv/bin/activate   # Mac/Linux
 
