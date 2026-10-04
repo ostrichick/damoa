@@ -46,3 +46,8 @@ Thumbs.db
 # Scripts / Scratch
 test_search.py
 scratch/
+service_account*.json
+.netrc
+.pypirc
+id_rsa
+id_ed25519
