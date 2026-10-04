@@ -21,8 +21,13 @@ load_dotenv()
 # CORS Origins
 # ---------------------------------------------------------------------------
 APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
-IS_DEV = APP_ENV in {"dev", "development", "local", "test"}
-_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+IS_RENDER = os.getenv("RENDER", "").strip().lower() == "true"
+IS_DEV = not IS_RENDER and APP_ENV in {"dev", "development", "local", "test"}
+_default_origins = (
+    "http://localhost:3000,http://127.0.0.1:3000"
+    if IS_DEV
+    else "https://damoa-one.vercel.app"
+)
 _raw_origins = os.getenv("CORS_ORIGINS", _default_origins)
 CORS_ORIGINS = [o.strip().rstrip("/") for o in _raw_origins.split(",") if o.strip()]
 if "*" in CORS_ORIGINS and not IS_DEV:
