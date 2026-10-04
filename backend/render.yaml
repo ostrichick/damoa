@@ -12,4 +12,6 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: '*'
+        value: 'https://damoa-one.vercel.app'
+      - key: APP_ENV
+        value: 'production'

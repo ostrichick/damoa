@@ -10,10 +10,11 @@ import logging
 from typing import Any, Optional
 
 import aiosqlite
-from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
 from database import from_json, get_db, to_json
+from security import SessionUser, enforce_job_search_rate_limit, require_session
 from services.crawlers.multi_crawler import crawl_multi_platform_jobs
 from services.matcher import match_jobs_to_profile
 
@@ -37,7 +38,6 @@ class JobSearchRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="Natural language custom working conditions & preferences")
     location: str = Field("", description="Target job location, e.g. 'Seoul, Korea' or 'Remote'")
     num_results: int = Field(20, ge=1, le=50, description="Number of job results to fetch (1-50)")
-    cached_profile: Optional[dict[str, Any]] = Field(None, description="Optional cached profile object from client for self-healing across server restarts")
 
     @field_validator("num_results")
     @classmethod
@@ -105,11 +105,15 @@ class SearchStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-async def _get_profile_from_db(db: aiosqlite.Connection, resume_id: int) -> dict[str, Any]:
+async def _get_profile_from_db(
+    db: aiosqlite.Connection,
+    resume_id: int,
+    user_id: int,
+) -> dict[str, Any]:
     """Load the AI profile JSON for a resume from the DB."""
     rows = await db.execute_fetchall(
-        "SELECT ai_profile, level FROM resumes WHERE id = ? LIMIT 1",
-        (resume_id,),
+        "SELECT ai_profile, level FROM resumes WHERE id = ? AND user_id = ? LIMIT 1",
+        (resume_id, user_id),
     )
     if not rows:
         raise HTTPException(
@@ -513,6 +517,7 @@ async def _run_job_search(
 async def search_jobs(
     body: JobSearchRequest,
     background_tasks: BackgroundTasks,
+    user: SessionUser = Depends(require_session),
 ) -> JobSearchResponse:
     """
     Trigger a job search based on the candidate's resume profile.
@@ -526,35 +531,10 @@ async def search_jobs(
     Use GET /api/jobs/status/{search_id} to poll, or
     GET /api/jobs/results/{search_id} to retrieve the final results.
     """
-    # Load profile with restart self-healing fallback
-    profile = None
-    try:
-        async for db in get_db():
-            profile = await _get_profile_from_db(db, body.resume_id)
-    except HTTPException as exc:
-        if body.cached_profile and isinstance(body.cached_profile, dict):
-            logger.info("Resume ID %d missing from DB; restoring from cached_profile...", body.resume_id)
-            profile = dict(body.cached_profile)
-            async for db in get_db():
-                await db.execute(
-                    """
-                    INSERT INTO resumes (id, content_text, parsed_skills, parsed_experience, parsed_education, level, ai_profile)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET ai_profile = excluded.ai_profile
-                    """,
-                    (
-                        body.resume_id,
-                        profile.get("summary", ""),
-                        to_json(profile.get("skills", [])),
-                        to_json(profile.get("experience", [])),
-                        to_json(profile.get("education", [])),
-                        profile.get("level", "mid"),
-                        to_json(profile),
-                    ),
-                )
-                await db.commit()
-        else:
-            raise exc
+    await enforce_job_search_rate_limit(user)
+
+    async for db in get_db():
+        profile = await _get_profile_from_db(db, body.resume_id, user.id)
 
     if body.custom_prompt:
         profile["custom_prompt"] = body.custom_prompt
@@ -720,15 +700,24 @@ async def search_jobs(
     response_model=SearchResultsResponse,
     summary="Get job search results by search ID",
 )
-async def get_search_results(search_id: int) -> SearchResultsResponse:
+async def get_search_results(
+    search_id: int,
+    user: SessionUser = Depends(require_session),
+) -> SearchResultsResponse:
     """
     Retrieve all job recommendations stored for a particular search run.
     """
     # Load search metadata
     async for db in get_db():
         search_rows = await db.execute_fetchall(
-            "SELECT * FROM job_searches WHERE id = ? LIMIT 1",
-            (search_id,),
+            """
+            SELECT js.*
+            FROM job_searches AS js
+            JOIN resumes AS r ON r.id = js.resume_id
+            WHERE js.id = ? AND r.user_id = ?
+            LIMIT 1
+            """,
+            (search_id, user.id),
         )
 
     if not search_rows:
@@ -768,27 +757,31 @@ async def get_search_results(search_id: int) -> SearchResultsResponse:
     response_model=SearchStatusResponse,
     summary="Check the status of a job search",
 )
-async def get_search_status(search_id: int) -> SearchStatusResponse:
+async def get_search_status(
+    search_id: int,
+    user: SessionUser = Depends(require_session),
+) -> SearchStatusResponse:
     """
     Returns the current status of a job search: 'pending', 'running',
     'completed', or 'failed'.
     """
-    # Check in-memory first (fast path)
-    if search_id in _search_status:
-        current_status = _search_status[search_id]
-    else:
-        # Fall back to DB
-        async for db in get_db():
-            rows = await db.execute_fetchall(
-                "SELECT status FROM job_searches WHERE id = ? LIMIT 1",
-                (search_id,),
-            )
-        if not rows:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Search with id={search_id} not found.",
-            )
-        current_status = rows[0]["status"]
+    async for db in get_db():
+        rows = await db.execute_fetchall(
+            """
+            SELECT js.status
+            FROM job_searches AS js
+            JOIN resumes AS r ON r.id = js.resume_id
+            WHERE js.id = ? AND r.user_id = ?
+            LIMIT 1
+            """,
+            (search_id, user.id),
+        )
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Search with id={search_id} not found.",
+        )
+    current_status = _search_status.get(search_id, rows[0]["status"])
 
     messages = {
         "pending": "Search is queued and will start shortly.",

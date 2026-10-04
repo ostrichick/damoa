@@ -3,6 +3,15 @@
 .env.local
 .env.*.local
 *.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials*.json
+service-account*.json
+.npmrc
 
 # Python
 backend/venv/

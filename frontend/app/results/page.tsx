@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import Navbar from "../components/Navbar";
 import { useLanguage } from "../context/LanguageContext";
+import { authHeaders } from "../utils/apiSession";
 import { translateTag, translateTags } from "../utils/tagTranslator";
 import ErrorAlert from "../components/ErrorAlert";
 
@@ -64,10 +65,6 @@ interface SearchResult {
 
 type SortBy = "match_score" | "company" | "platform";
 type FilterLevel = "all" | "80+" | "70+" | "60+";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function ScoreRing({ score }: { score: number }) {
   const radius = 30;
@@ -393,42 +390,16 @@ function ResultsContent() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-    // Retrieve cached profile from localStorage for restart resilience
-    let cachedProfile: Record<string, unknown> | null = null;
-    if (typeof window !== "undefined") {
-      try {
-        const listStr = localStorage.getItem("damoa_saved_profiles");
-        if (listStr) {
-          const list: unknown = JSON.parse(listStr);
-          if (Array.isArray(list)) {
-            cachedProfile = list.find(
-              (profile: unknown) => isRecord(profile) && String(profile.resume_id) === String(resumeId),
-            ) ?? null;
-          }
-        }
-        if (!cachedProfile) {
-          const singleStr = localStorage.getItem("damoa_saved_profile");
-          if (singleStr) {
-            const single: unknown = JSON.parse(singleStr);
-            if (isRecord(single) && String(single.resume_id) === String(resumeId)) {
-              cachedProfile = single;
-            }
-          }
-        }
-      } catch {}
-    }
-
     try {
       const res = await fetch(`${API_BASE}/api/jobs/search`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
         signal: controller.signal,
         body: JSON.stringify({
           resume_id: parseInt(resumeId),
           location,
           num_results: numResults,
           custom_prompt: customPrompt,
-          cached_profile: cachedProfile,
         }),
       });
       clearTimeout(timeoutId);
@@ -438,7 +409,9 @@ function ResultsContent() {
 
       let profileSummary;
       try {
-        const pRes = await fetch(`${API_BASE}/api/resume/${resumeId}`);
+        const pRes = await fetch(`${API_BASE}/api/resume/${resumeId}`, {
+          headers: authHeaders(),
+        });
         if (pRes.ok) {
           const pData = await pRes.json();
           profileSummary = pData.profile;

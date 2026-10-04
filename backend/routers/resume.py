@@ -10,10 +10,11 @@ import logging
 from typing import Any, Optional
 
 import aiosqlite
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, EmailStr, field_validator
 
 from database import from_json, get_db, to_json
+from security import SessionUser, enforce_resume_rate_limit, require_session
 from services.ai_analyzer import analyze_resume
 from services.resume_parser import parse_resume
 
@@ -92,6 +93,7 @@ class ResumeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 async def _save_resume_to_db(
     db: aiosqlite.Connection,
+    user_id: int,
     filename: str,
     content_text: str,
     profile: dict[str, Any],
@@ -100,11 +102,12 @@ async def _save_resume_to_db(
     cursor = await db.execute(
         """
         INSERT INTO resumes
-            (filename, content_text, parsed_skills, parsed_experience,
+            (user_id, filename, content_text, parsed_skills, parsed_experience,
              parsed_education, level, ai_profile)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            user_id,
             filename,
             content_text,
             to_json(profile.get("skills", [])),
@@ -149,6 +152,7 @@ def _row_to_profile(row: aiosqlite.Row) -> ResumeProfile:
 )
 async def upload_resume(
     file: UploadFile = File(..., description="Resume file – PDF, DOCX, or TXT"),
+    user: SessionUser = Depends(require_session),
 ) -> ResumeResponse:
     """
     Upload a resume file. The server will:
@@ -157,6 +161,8 @@ async def upload_resume(
     3. Persist the result in the database.
     4. Return the parsed profile.
     """
+    await enforce_resume_rate_limit(user)
+
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,7 +210,7 @@ async def upload_resume(
 
     # Persist
     async for db in get_db():
-        resume_id = await _save_resume_to_db(db, file.filename, content_text, profile)
+        resume_id = await _save_resume_to_db(db, user.id, file.filename, content_text, profile)
 
     return ResumeResponse(
         success=True,
@@ -236,11 +242,16 @@ async def upload_resume(
     status_code=status.HTTP_201_CREATED,
     summary="Submit resume as plain text",
 )
-async def submit_text_resume(body: TextResumeRequest) -> ResumeResponse:
+async def submit_text_resume(
+    body: TextResumeRequest,
+    user: SessionUser = Depends(require_session),
+) -> ResumeResponse:
     """
     Submit resume content as plain text. Useful when the frontend already
     has the text (e.g. from a text area).
     """
+    await enforce_resume_rate_limit(user)
+
     try:
         profile = await analyze_resume(body.text)
     except Exception as exc:
@@ -253,7 +264,7 @@ async def submit_text_resume(body: TextResumeRequest) -> ResumeResponse:
     filename = body.filename or "resume.txt"
 
     async for db in get_db():
-        resume_id = await _save_resume_to_db(db, filename, body.text, profile)
+        resume_id = await _save_resume_to_db(db, user.id, filename, body.text, profile)
 
     return ResumeResponse(
         success=True,
@@ -284,11 +295,14 @@ async def submit_text_resume(body: TextResumeRequest) -> ResumeResponse:
     response_model=ResumeResponse,
     summary="Retrieve the most recently uploaded resume profile",
 )
-async def get_latest_resume() -> ResumeResponse:
+async def get_latest_resume(
+    user: SessionUser = Depends(require_session),
+) -> ResumeResponse:
     """Fetch the latest analysed resume profile from the database."""
     async for db in get_db():
         row = await db.execute_fetchall(
-            "SELECT * FROM resumes ORDER BY id DESC LIMIT 1"
+            "SELECT * FROM resumes WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+            (user.id,),
         )
 
     if not row:
@@ -313,12 +327,15 @@ async def get_latest_resume() -> ResumeResponse:
     response_model=ResumeResponse,
     summary="Retrieve a stored resume profile by ID",
 )
-async def get_resume(resume_id: int) -> ResumeResponse:
+async def get_resume(
+    resume_id: int,
+    user: SessionUser = Depends(require_session),
+) -> ResumeResponse:
     """Fetch a previously analysed resume profile from the database."""
     async for db in get_db():
         row = await db.execute_fetchall(
-            "SELECT * FROM resumes WHERE id = ? LIMIT 1",
-            (resume_id,),
+            "SELECT * FROM resumes WHERE id = ? AND user_id = ? LIMIT 1",
+            (resume_id, user.id),
         )
 
     if not row:

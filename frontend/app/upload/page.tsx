@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { useLanguage } from "../context/LanguageContext";
 import ErrorAlert from "../components/ErrorAlert";
+import { authHeaders } from "../utils/apiSession";
 
 type UploadMode = "file" | "linkedin" | "text";
 type AnalysisStep = "idle" | "uploading" | "parsing" | "analyzing" | "done" | "error";
@@ -133,7 +134,9 @@ export default function UploadPage() {
       // 2. Fetch latest from backend DB if empty
       if (profiles.length === 0) {
         try {
-          const res = await fetch(`${API_BASE}/api/resume/latest`);
+          const res = await fetch(`${API_BASE}/api/resume/latest`, {
+            headers: authHeaders(),
+          });
           if (res.ok) {
             const data: ResumeApiResponse = await res.json();
             if (data.profile && data.profile.resume_id) {
@@ -216,6 +219,7 @@ export default function UploadPage() {
         setStep("parsing");
         const res = await fetch(`${API_BASE}/api/resume/upload`, {
           method: "POST",
+          headers: authHeaders(),
           body: formData,
           signal: controller.signal,
         });
@@ -233,7 +237,7 @@ export default function UploadPage() {
         setStep("analyzing");
         const res = await fetch(`${API_BASE}/api/resume/text`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ text: resumeText }),
           signal: controller.signal,
         });
@@ -250,7 +254,7 @@ export default function UploadPage() {
         setStep("analyzing");
         const res = await fetch(`${API_BASE}/api/resume/text`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({ text: `LinkedIn Profile URL: ${linkedinUrl}` }),
           signal: controller.signal,
         });

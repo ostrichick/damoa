@@ -20,13 +20,13 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # CORS Origins
 # ---------------------------------------------------------------------------
-_raw_origins = os.getenv("CORS_ORIGINS", "*")
-if _raw_origins == "*" or not _raw_origins:
-    CORS_ORIGINS = ["*"]
-    ALLOW_CREDENTIALS = False
-else:
-    CORS_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
-    ALLOW_CREDENTIALS = True
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+IS_DEV = APP_ENV in {"dev", "development", "local", "test"}
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+_raw_origins = os.getenv("CORS_ORIGINS", _default_origins)
+CORS_ORIGINS = [o.strip().rstrip("/") for o in _raw_origins.split(",") if o.strip()]
+if "*" in CORS_ORIGINS and not IS_DEV:
+    raise RuntimeError("CORS_ORIGINS='*' is not allowed outside development.")
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +53,9 @@ def create_app() -> FastAPI:
             "Upload your resume and get personalised job matches."
         ),
         version="1.0.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if IS_DEV else None,
+        redoc_url="/redoc" if IS_DEV else None,
+        openapi_url="/openapi.json" if IS_DEV else None,
         lifespan=lifespan,
     )
 
@@ -64,9 +65,9 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
-        allow_credentials=ALLOW_CREDENTIALS,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     # -----------------------------------------------------------------------

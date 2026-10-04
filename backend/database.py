@@ -99,7 +99,65 @@ async def init_db() -> None:
         await db.execute(_CREATE_JOB_SEARCHES)
         await db.execute(_CREATE_JOB_RECOMMENDATIONS)
 
-        # Historical personal seed data removed during privacy rewrite.
+        # Synthetic fixtures only. These rows are intentionally ownerless and are not
+        # returned by authenticated API queries; they keep legacy/demo assumptions stable.
+        default_profiles = [
+            {
+                "id": 1,
+                "name": "Sample Candidate A",
+                "email": "candidate-a@example.invalid",
+                "phone": "+82-10-0000-0001",
+                "skills": ["Spanish", "English", "Korean", "Content Marketing", "Design", "Interpretation"],
+                "experience": [
+                    {"company": "Example Media Studio", "title": "Content Specialist", "duration": "2022 - Present", "description": "Synthetic fixture for multilingual content and marketing experience.", "years": 2.0}
+                ],
+                "education": [
+                    {"degree": "Bachelor", "school": "Example University", "field": "Digital Media", "year": "2022"}
+                ],
+                "total_years_experience": 2.0,
+                "level": "mid",
+                "domains": ["Digital Marketing", "Interpretation", "Content Creation"],
+                "languages": ["Spanish", "English", "Korean"],
+                "summary": "Synthetic multilingual content and interpretation candidate used only as a development fixture."
+            },
+            {
+                "id": 2,
+                "name": "Sample Candidate B",
+                "email": "candidate-b@example.invalid",
+                "phone": "+82-10-0000-0002",
+                "skills": ["Korean", "AI Evaluation", "Data Labeling", "QA", "Python"],
+                "experience": [
+                    {"company": "Example AI Lab", "title": "Data Quality Analyst", "duration": "2023 - Present", "description": "Synthetic fixture for AI response evaluation and data quality work.", "years": 2.0}
+                ],
+                "education": [
+                    {"degree": "Bachelor", "school": "Example Institute", "field": "Computer Science", "year": "2021"}
+                ],
+                "total_years_experience": 2.0,
+                "level": "mid",
+                "domains": ["AI/Data", "Audio Processing", "Education"],
+                "languages": ["Korean", "English"],
+                "summary": "Synthetic AI data quality candidate used only as a development fixture."
+            }
+        ]
+
+        for p in default_profiles:
+            profile_copy = {**p, "resume_id": p["id"]}
+            await db.execute(
+                """
+                INSERT INTO resumes (id, content_text, parsed_skills, parsed_experience, parsed_education, level, ai_profile)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO NOTHING
+                """,
+                (
+                    p["id"],
+                    p["summary"],
+                    to_json(p["skills"]),
+                    to_json(p["experience"]),
+                    to_json(p["education"]),
+                    p["level"],
+                    to_json(profile_copy),
+                ),
+            )
 
         await db.commit()
 

@@ -11,7 +11,7 @@ interface CrawlerSource {
   tier: "Tier 1 (High Priority)" | "Tier 2 (Secondary / Deep)" | "Specialized DB";
   tierColor: string;
   type: "Official REST API" | "HTML Scraper" | "JSON API" | "Headless Scraper" | "Verified DB";
-  targetUser: "Wife (Nicole)" | "Husband (Munseong)" | "Both (Universal)";
+  targetUser: "Candidate A" | "Candidate B" | "Both (Universal)";
   primaryTarget: string;
   targetLocations: string;
   latency: string;
@@ -29,14 +29,14 @@ const CRAWLER_SOURCES: CrawlerSource[] = [
     tier: "Tier 1 (High Priority)",
     tierColor: "#ffffff",
     type: "HTML Scraper",
-    targetUser: "Wife (Nicole)",
+    targetUser: "Candidate A",
     primaryTarget: "한국 내 오프라인 직무, 스페인어/영어 통역, 학원 강사, 기업 마케팅",
     targetLocations: "전주 (Jeonju), 서울 (Seoul), 한국 전국",
     latency: "~1.1s",
     status: "ACTIVE",
     url: "https://www.saramin.co.kr",
     payoutMethods: ["통장 직접 입금", "4대 보험", "월급/계약서 기준"],
-    description: "국내 최대 채용 포털. 아내 Nicole 님의 한국 현장 직무(전주/서울 스페인어 통역, 영어 강사 등) 수집의 1순위 핵심 엔진입니다.",
+    description: "국내 최대 채용 포털. 다국어·마케팅 경력의 합성 Candidate A 프로필을 위한 한국 현장 직무 수집 예시입니다.",
     queryExample: "'스페인어 통역', '영어 강사', '콘텐츠 마케팅'",
   },
   {
@@ -61,14 +61,14 @@ const CRAWLER_SOURCES: CrawlerSource[] = [
     tier: "Tier 1 (High Priority)",
     tierColor: "#ffffff",
     type: "JSON API",
-    targetUser: "Husband (Munseong)",
+    targetUser: "Candidate B",
     primaryTarget: "100% 글로벌 재택근무, AI 데이터 평가, QA, 원격 소프트웨어",
     targetLocations: "100% Worldwide Remote (전 세계 어디서나)",
     latency: "~0.6s",
     status: "ACTIVE",
     url: "https://remoteok.com",
     payoutMethods: ["PayPal", "Stripe", "Wise", "Deel (USD 송금)"],
-    description: "글로벌 1위 원격근무 잡보드. 남편 최문성 님의 글로벌 AI 평가 / LLM QA 원격 직무 발굴의 주력 소스입니다.",
+    description: "글로벌 원격근무 잡보드. AI 데이터·QA 경력의 합성 Candidate B 프로필을 위한 원격 직무 수집 예시입니다.",
     queryExample: "'AI Evaluator', 'QA', 'Data Annotation', 'Remote'",
   },
   {
@@ -93,7 +93,7 @@ const CRAWLER_SOURCES: CrawlerSource[] = [
     tier: "Specialized DB",
     tierColor: "#71717a",
     type: "Verified DB",
-    targetUser: "Husband (Munseong)",
+    targetUser: "Candidate B",
     primaryTarget: "한국어 LLM 평가, 프롬프트 엔지니어링, AI 데이터 트레이닝",
     targetLocations: "100% Remote",
     latency: "즉시 매칭 (Instant)",
@@ -109,7 +109,7 @@ const CRAWLER_SOURCES: CrawlerSource[] = [
     tier: "Specialized DB",
     tierColor: "#71717a",
     type: "Verified DB",
-    targetUser: "Husband (Munseong)",
+    targetUser: "Candidate B",
     primaryTarget: "고시급 AI 챗봇 평가 및 데이터 라벨링 ($20 ~ $40 / 시간)",
     targetLocations: "100% Remote",
     latency: "즉시 매칭 (Instant)",
@@ -141,7 +141,7 @@ const CRAWLER_SOURCES: CrawlerSource[] = [
     tier: "Specialized DB",
     tierColor: "#71717a",
     type: "Verified DB",
-    targetUser: "Husband (Munseong)",
+    targetUser: "Candidate B",
     primaryTarget: "검색 품질 평가사 (Search Quality Rater), AI 언어 평가",
     targetLocations: "Remote (Korea / Global)",
     latency: "즉시 매칭 (Instant)",
@@ -181,8 +181,8 @@ export default function CrawlerSourcesPage() {
   };
 
   const filteredSources = CRAWLER_SOURCES.filter((s) => {
-    if (filterUser === "wife" && s.targetUser !== "Wife (Nicole)" && s.targetUser !== "Both (Universal)") return false;
-    if (filterUser === "husband" && s.targetUser !== "Husband (Munseong)" && s.targetUser !== "Both (Universal)") return false;
+    if (filterUser === "candidate-a" && s.targetUser !== "Candidate A" && s.targetUser !== "Both (Universal)") return false;
+    if (filterUser === "candidate-b" && s.targetUser !== "Candidate B" && s.targetUser !== "Both (Universal)") return false;
     if (filterTier === "tier1" && !s.tier.includes("Tier 1")) return false;
     if (filterTier === "tier2" && !s.tier.includes("Tier 2")) return false;
     if (filterTier === "db" && !s.tier.includes("Specialized")) return false;
@@ -244,11 +244,11 @@ export default function CrawlerSourcesPage() {
 
         {/* Dual Target Strategy Summary Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16, marginBottom: 32 }}>
-          {/* Nicole's Strategy */}
+          {/* Synthetic Candidate A strategy */}
           <div className="glass-card" style={{ padding: 22, border: "1px solid rgba(255, 255, 255, 0.1)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#fafafa" }}>
-                👩 아내 (Nicole Mostacero Salinas) 맞춤 라우터
+                Candidate A 맞춤 라우터 (합성 프로필)
               </span>
               <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: "#a1a1aa" }}>
                 한국 현장 / 어학 / 마케팅
@@ -262,11 +262,11 @@ export default function CrawlerSourcesPage() {
             </ul>
           </div>
 
-          {/* Munseong's Strategy */}
+          {/* Synthetic Candidate B strategy */}
           <div className="glass-card" style={{ padding: 22, border: "1px solid rgba(255, 255, 255, 0.1)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#fafafa" }}>
-                👨 남편 (최문성 님) 맞춤 라우터
+                Candidate B 맞춤 라우터 (합성 프로필)
               </span>
               <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,0.06)", color: "#a1a1aa" }}>
                 글로벌 원격 / AI 평가 / LLM
@@ -294,8 +294,8 @@ export default function CrawlerSourcesPage() {
             style={{ padding: "6px 12px", fontSize: 12, width: "auto" }}
           >
             <option value="all">{language === "ko" ? "모든 대상 사용자" : "All Target Users"}</option>
-            <option value="wife">{language === "ko" ? "아내 (Nicole) 우선 소스" : "Wife (Nicole) Sources"}</option>
-            <option value="husband">{language === "ko" ? "남편 (최문성) 우선 소스" : "Husband (Munseong) Sources"}</option>
+            <option value="candidate-a">{language === "ko" ? "Candidate A 우선 소스" : "Candidate A Sources"}</option>
+            <option value="candidate-b">{language === "ko" ? "Candidate B 우선 소스" : "Candidate B Sources"}</option>
           </select>
 
           <select
